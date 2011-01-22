@@ -7,6 +7,8 @@ from twisted.internet.protocol import Protocol
 
 from constants import *
 
+from DataBuffer import DataBuffer
+
 class MCBaseClientProtocol(Protocol):
     def sendPacked(self, mtype, *args):
         fmt = TYPE_FORMATS[mtype]
@@ -32,38 +34,40 @@ class MCBaseClientProtocol(Protocol):
         
     def dataReceived(self, data):
         self.buffer += data
-        while self.buffer:
-            type = ord(self.buffer[0])
-            print hex(type)
+        
+        parseBuffer = DataBuffer(self.buffer)
+        while parseBuffer.lenLeft() > 0:
+            packetType = ord(parseBuffer.read(1))
+            #print "packet", hex(packetType)
             try:
-                format = TYPE_FORMATS[type]
+                format = TYPE_FORMATS[packetType]
             except KeyError:
                 print "invalid packet type"
-                print hex(type), len(self.buffer), repr(self.buffer)
+                print hex(packetType), len(self.buffer), repr(self.buffer)
                 print "last", self.otype
                 
                 self.transport.loseConnection()
                 return
             
             try:
-                parts = list(format.decode(self.buffer[1:]))
+                parts = list(format.decode(parseBuffer) or [])
             except IncompleteDataError:
                 break
-            dataLength = parts.pop()
-            self.buffer = self.buffer[dataLength+1:]
+            #dataLength = parts.pop()
+            #self.buffer = self.buffer[dataLength+1:]
+            self.buffer = parseBuffer.peek()
             
             #debug
-            self.otype = type
+            self.otype = packetType
             
             self.counter += 1
             if self.counter % 300 == 0:
                 self.sendPacked(TYPE_KEEPALIVE)
             
-            if type in self.packetHandlers:
-                ret = self.packetHandlers[type](parts)
+            if packetType in self.packetHandlers:
+                ret = self.packetHandlers[packetType](parts)
                 if ret == False:
                     return
-    
     
     def _handleLogin(self, parts):
         id, name, motd, mapSeed, dimension = parts
@@ -79,8 +83,8 @@ class MCBaseClientProtocol(Protocol):
             'sessionId': self.factory.sessionId,
             'serverId': serverId
         })
-        f = urllib.urlopen("http://www.minecraft.net/game/joinserver.jsp", params)
-        f.read()
+        f = urllib.urlopen("http://www.minecraft.net/game/joinserver.jsp?%s" % params)
+        print repr(f.read())
         print "Done"
 
         self.sendPacked(TYPE_LOGIN, 8, self.factory.username, "Password", 0, 0)

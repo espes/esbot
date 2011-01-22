@@ -12,8 +12,11 @@ from math import floor, ceil
 import array
 from constants import *
 
-def ifloor(a):
-    return int(floor(a))
+
+def ifloor(n):
+    return int(floor(n))
+def iceil(n):
+    return int(ceil(n))
 
 class Point(object):
     def __init__(self, x, y, z):
@@ -27,11 +30,32 @@ class Point(object):
     
     def __sub__(self, other):
         return self.x-other.x, self.y-other.y, self.z-other.z
-class Player(object):
-    def __init__(self, id, name, pos):
-        self.id, self.name, self.pos = id, name, pos
+
+
+class Entity(object):
+    def __init__(self, id, pos):
+        self.id, self.pos = id, pos
     def __repr__(self):
-        return "Player(id=%r, name=%r, pos=%r)" % (self.id, self.name, self.pos)
+        return "Entity(id=%r, pos=%r)" % (self.id, self.pos)
+class Mob(Entity):
+    def __init__(self, id, pos, type):
+        Entity.__init__(self, id, pos)
+        self.type = type
+    def __repr__(self):
+        return "Mob(id=%r, pos=%r, type=%r)" % (self.id, self.pos, self.type)
+class Player(Entity):
+    def __init__(self, id, pos, name):
+        Entity.__init__(self, id, pos)
+        self.name = name
+    def __repr__(self):
+        return "Player(id=%r, pos=%r, name=%r)" % (self.id, self.pos, self.name)
+class WorldObject(Entity):
+    def __init__(self, id, pos, type):
+        Entity.__init__(self, id, pos)
+        self.type = type
+    def __repr__(self):
+        return "WorldObject(id=%r, pos=%r, type=%r)" % (self.id, self.pos, self.type)
+
 class MapPlayer(object):
     def __init__(self, name, pos):
         self.name, self.pos = name, pos
@@ -57,7 +81,9 @@ class BlockNotLoadedError(Exception):
 class TimeoutError(Exception):
     pass
 class Map(object):
-    def __init__(self):
+    def __init__(self, client):
+        self.client = client
+        
         self.chunks = {}
         
         self.adjX = [0, -1, 0, 1, 0, 0]
@@ -108,7 +134,7 @@ class Map(object):
             chunk[x-cx, y-cy, z-cz] = value
         else:
             raise BlockNotLoadedError
-    def searchForBlock(self, source, targetBlock):
+    def searchForBlock(self, source, targetBlock, timeout=10):
         source = Point(*map(ifloor, source))
         
         startTime = time.time()
@@ -118,7 +144,7 @@ class Map(object):
         q = deque([source])
         while True:
             pos = q.popleft()
-            if time.time()-startTime > 10:
+            if time.time()-startTime > timeout:
                 print ((pos.x-source.x)**2+(pos.y-source.y)**2+(pos.z-source.z)**2)**0.5
                 raise TimeoutError
             for dx, dy, dz in zip(self.adjX, self.adjY, self.adjZ):
@@ -135,10 +161,14 @@ class Map(object):
         
         return None
         
-    def findPath(self, start, end, acceptIncomplete=False, threshhold = None):
+    def findPath(self, start, end, acceptIncomplete=False, threshold=None, destructive=False):
+        walkableBlocks = BLOCKS_WALKABLE
+        if destructive:
+            walkableBlocks |= BLOCKS_BREAKABLE
+        
         #A* FTW
         try:
-            assert self[end] in BLOCKS_WALKABLE and self[end.x,end.y+1,end.z] in BLOCKS_WALKABLE
+            assert self[end] in walkableBlocks and self[end.x,end.y+1,end.z] in walkableBlocks
         except BlockNotLoadedError, e:
             if not acceptIncomplete:
                 raise e
@@ -155,12 +185,28 @@ class Map(object):
         backTrack = {}
         found = None
         
+        #hack
+        mapInstance = self
         class AStarNode(Point):
             def __init__(self, *args):
                 Point.__init__(self, *args)
                 self.dist = ((end.x-self.x)**2+(end.y-self.y)**2+(end.z-self.z)**2)**0.5
                 
-                self.available = True
+                try:
+                    self.blockId = mapInstance[self]
+                    self.available = True
+                except BlockNotLoadedError:
+                    self.blockId = None
+                    self.available = False
+                
+                if destructive and self.blockId in BLOCKS_BREAKABLE:
+                    #TODO: estimate using number of hits
+                    
+                    #takes about 3? game ticks to clear the blocks
+                    mineTime = mapInstance.client.targetTick*3
+                    mineDistance = mapInstance.client.speed*mineTime
+                    self.dist += mineDistance
+                
         
         startNode = AStarNode(*map(ifloor, start))
         endNode = AStarNode(*map(ifloor, end))
@@ -177,8 +223,8 @@ class Map(object):
                 continue
             if tuple(node) == tuple(endNode) or \
                     ((not node.available) and acceptIncomplete) or \
-                    (threshhold is not None and \
-                        ((node.x-end.x)**2+(node.y-end.y)**2+(node.z-end.z)**2)**0.5 <= threshhold):
+                    (threshold is not None and \
+                        ((node.x-end.x)**2+(node.y-end.y)**2+(node.z-end.z)**2)**0.5 <= threshold):
                 
                 found = node
                 break
@@ -186,10 +232,13 @@ class Map(object):
             visited[tuple(node)] = True
             for dx, dy, dz in zip(adjX, adjY, adjZ):
                 newNode = AStarNode(node.x+dx, node.y+dy, node.z+dz)
-                #if tuple(newNode) in visited:
-                #    continue
                 
+                if (not newNode.available) and (not acceptIncomplete):
+                    continue
+                if newNode.available and (newNode.blockId not in walkableBlocks):
+                    continue
                 
+                """
                 try:
                     blockType = self[newNode]
                 except BlockNotLoadedError:
@@ -197,12 +246,13 @@ class Map(object):
                     if not acceptIncomplete:
                         continue
                 else:
-                    if blockType not in BLOCKS_WALKABLE:
+                    if blockType not in walkableBlocks:
                         continue
+                """
                 
                 #Make sure the player can get through, player is 2 blocks vertically
                 try:
-                    if self[newNode.x, newNode.y+1, newNode.z] not in BLOCKS_WALKABLE:
+                    if self[newNode.x, newNode.y+1, newNode.z] not in walkableBlocks:
                         continue
                 except BlockNotLoadedError:
                     pass
@@ -238,7 +288,8 @@ class Map(object):
             return None
                     
 class GameLogic(object):
-    def getFace(dx, dy, dz):
+    def getFace(self, dx, dy, dz):
+        #Assumes facing at center of the block
         if dy <= 0 and abs(dy) >= abs(dx) and abs(dy) >= abs(dz):
             face = 0
         elif dy >= 0 and abs(dy) >= abs(dx) and abs(dy) >= abs(dz):
@@ -296,7 +347,7 @@ class GameLogic(object):
         
         return 1
     
-    def calcHitsToBreakBlock(self, item, block):
+    def calcHitsToBreakBlock(self, client, item, block):
         if block in BLOCKS_HARDNESS:
             hardness = BLOCKS_HARDNESS[block]
         else:
@@ -305,7 +356,10 @@ class GameLogic(object):
         if hardness == 0: return 1
         
         if self.itemCanHarvestBlock(item, block):
-            damagePerHit = self.itemStrVsBlock(item, block) / hardness / 30
+            strength = self.itemStrVsBlock(item, block)
+            if client.map[client.pos] in (BLOCKS_WATER, BLOCKS_STATIONARYWATER):
+                strength /= 5
+            damagePerHit = strength / hardness / 30
         else:
             damagePerHit = 1 / hardness / 100
         

@@ -65,7 +65,7 @@ class Builder(object):
                         continue
                 except BlockNotLoadedError:
                     pass
-
+                    
                 print "build", buildPoint
                 foundPath = True
                 for v in self.client.command_walkPathToPoint( \
@@ -142,8 +142,8 @@ class Builder(object):
                     if used != 0:
                         yield Point(startPos.x+x, startPos.y-z, startPos.z+y), \
                             self.getBlockForColour((r,g,b))
-        
-    def command_clearArea(self, startPos, dx, dy, dz):
+    
+    def command_clearCuboid(self, startPos, dx, dy, dz):
         for x in xrange(startPos.x, startPos.x+dx, dx/abs(dx)):
             for z in xrange(startPos.z, startPos.z+dz, dz/abs(dz)):
                 for y in xrange(max(startPos.y, startPos.y+dy), min(startPos.y, startPos.y+dy)-1, -1):

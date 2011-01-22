@@ -43,6 +43,7 @@ TYPE_ENTITYMOVELOOK = 0x21
 TYPE_ENTITYTELEPORT = 0x22
 TYPE_ENTITYSTATUS = 0x26
 TYPE_ATTACHENTITY = 0x27
+TYPE_ENTITYMETADATA = 0x28
 TYPE_PRECHUNK = 0x32
 TYPE_CHUNK = 0x33
 TYPE_MULTIBLOCKCHANGE = 0x34
@@ -58,9 +59,9 @@ TYPE_DISCONNECT = 0xFF
 
 TYPE_FORMATS = {
 	TYPE_KEEPALIVE: Format(""),
-	TYPE_LOGIN: Format("issqb"),
-	TYPE_HANDSHAKE: Format("s"),
-	TYPE_CHAT: Format("s"),
+	TYPE_LOGIN: Format("iSSqb"),
+	TYPE_HANDSHAKE: Format("S"),
+	TYPE_CHAT: Format("S"),
 	TYPE_UPDATETIME: Format("q"),
 	TYPE_ENTITYEQUIPMENT: Format("ihhh"),
 	TYPE_SPAWNPOSITION: Format("iii"),
@@ -77,12 +78,12 @@ TYPE_FORMATS = {
 	TYPE_ADDINVENTORY: Format("hbh"),
 	TYPE_ARMANIMATION: Format("ib"),
 	TYPE_ENTITYACTION: Format("ib"),
-	TYPE_NAMEDENTITYSPAWN: Format("isiiibbh"),
+	TYPE_NAMEDENTITYSPAWN: Format("iSiiibbh"),
 	TYPE_PICKUPSPAWN: Format("ihbhiiibbb"),
 	TYPE_COLLECTITEM: Format("ii"),
 	TYPE_ADDOBJECT: Format("ibiii"),
-	TYPE_MOBSPAWN: Format("ibiiibb"),
-	TYPE_ENTITYPAINTING: Format("isiiii"),
+	TYPE_MOBSPAWN: Format("ibiiibbM"),
+	TYPE_ENTITYPAINTING: Format("iSiiii"),
 	TYPE_ENTITYVELOCITY: Format("ihhh"),
 	TYPE_DESTROYENTITY: Format("i"),
 	TYPE_ENTITY: Format("i"),
@@ -92,21 +93,22 @@ TYPE_FORMATS = {
 	TYPE_ENTITYTELEPORT: Format("iiiibb"),
 	TYPE_ENTITYSTATUS: Format("ib"),
 	TYPE_ATTACHENTITY: Format("ii"),
+	TYPE_ENTITYMETADATA: Format("iM"),
 	TYPE_PRECHUNK: Format("iib"),
 	TYPE_CHUNK: ChunkFormat(),
 	TYPE_MULTIBLOCKCHANGE: MultiBlockChangeFormat(),
 	TYPE_BLOCKCHANGE: Format("ibibb"),
-	TYPE_PLAYNOTEBLOCK: Format("iiibb"),
-	TYPE_COMPLEXENTITY: Format("ihis"),
+	TYPE_PLAYNOTEBLOCK: Format("ihibb"),
+	TYPE_COMPLEXENTITY: Format("ihiS"),
 	TYPE_PLAYERINVENTORY: InventoryFormat(),
 	TYPE_EXPLOSION: ExplosionFormat(),
 	TYPE_SETSLOT: SetSlotFormat(),
-	TYPE_UPDATESIGN: Format("ihissss"),
-	TYPE_DISCONNECT: Format("s")
+	TYPE_UPDATESIGN: Format("ihiSSSS"),
+	TYPE_DISCONNECT: Format("S")
 }
 
 
-
+BLOCKS = set()
 #blocks
 from pymclevel import materials, items
 import re
@@ -115,7 +117,10 @@ for id, name in enumerate(materials.names):
         continue
     varName = "BLOCK_"+re.sub(r"[\s\(\)]|(?:/.*)", "", name).upper()
     globals()[varName] = id
+    
+    BLOCKS.add(id)
 
+BLOCKS = frozenset(BLOCKS)
 
 BLOCKS_WALKABLE = frozenset([
     BLOCK_AIR,
@@ -150,14 +155,17 @@ BLOCKS_WALKABLE = frozenset([
 
 BLOCKS_UNBREAKABLE = frozenset([
     BLOCK_AIR,
+    
     BLOCK_WATER,
     BLOCK_STATIONARYWATER,
+    
     BLOCK_LAVA,
     BLOCK_STATIONARYLAVA,
     BLOCK_FIRE,
     BLOCK_BEDROCK,
     BLOCK_NETHERPORTAL
 ])
+BLOCKS_BREAKABLE = BLOCKS ^ BLOCKS_UNBREAKABLE
 
 BLOCKS_RESISTANCE = {
     BLOCK_STONE: 10,
@@ -350,3 +358,16 @@ ITEMS_AXE = frozenset([
     ITEM_IRONAXE,
     ITEM_DIAMONDAXE
 ])
+
+
+OBJECT_BOAT = 1
+OBJECT_MINECART = 10
+OBJECT_STORAGECART = 11
+OBJECT_POWEREDCART = 12
+OBJECT_ACTIVATEDTNT = 50
+OBJECT_ARROW = 60
+OBJECT_THROWNSNOWBALL = 61
+OBJECT_THROWNEGG = 62
+OBJECT_FALLINGSAND = 70
+OBJECT_FALLINGGRAVEL = 71
+OBJECT_FISHINGFLOAT = 90

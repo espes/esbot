@@ -10,12 +10,6 @@ import math
 import thread, threading
 
 import urllib
-import json
-
-from SimpleXMLRPCServer import SimpleXMLRPCServer
-
-from pymclevel import nbt
-import gzip, StringIO
 
 from constants import *
 from Utility import *
@@ -28,7 +22,9 @@ class MCFancyClient(object):
     def __init__(self, protocol):
         self.protocol = protocol
         
+        self.entities = {}
         self.players = {}
+        
         self.spawnPos = Point(-1, -1, -1)
         self.pos = Point(-1, -1, -1)
         self.headY = -1
@@ -39,13 +35,15 @@ class MCFancyClient(object):
         self.mapPlayers = {}
         #self._mapPlayersUpdate()
         
-        self.map = Map()
+        self.map = Map(self)
         
         self.speed = 6#block/s
         self.targetTick = 0.2
         
         self.commandQueue = []
+    
     def _mapPlayersUpdate(self):
+        import json
         try:
             h = urllib.urlopen("http://maps.mcau.org/markers")
             self.mapPlayers = {}
@@ -58,24 +56,30 @@ class MCFancyClient(object):
         self.mapPlayersUpdateTimer = threading.Timer(6, self._mapPlayersUpdate)
         self.mapPlayersUpdateTimer.start()
         
-    def command_followEntity(self, entityId): #Only works on players ATM
+    def command_followEntity(self, entityId):
         while True:
             try:
-                pos = self.players[entityId].pos
+                pos = self.entities[entityId].pos
             except KeyError:
                 yield False
                 return
             
-            for v in self.command_walkPathToPoint(pos, True, 4):
+            for v in self.command_walkPathToPoint(pos, True, targetThreshold=4):
                 yield v
                 #if v == False:
                 #    return
-    def command_walkPathToPoint(self, targetPoint, lookTowardsWalk=False, threshhold=None):
+    def command_walkPathToPoint(self, targetPoint, lookTowardsWalk=False, targetThreshold=None, destructive=False):
+        walkableBlocks = BLOCKS_WALKABLE
+        if destructive:
+            walkableBlocks |= BLOCKS_BREAKABLE
+        
+        targetPoint = Point(*targetPoint) #Make a copy so it doesn't change during pathfinding
         while True:
             found = True
             #print "finding path"
             try:
-                path, complete = self.map.findPath(self.pos, targetPoint, True, threshhold)
+                path, complete = self.map.findPath(self.pos, targetPoint, True, targetThreshold,
+                                    destructive=destructive)
                 if path is None:
                     print "findpath failed"
                     yield False
@@ -89,7 +93,7 @@ class MCFancyClient(object):
                 #This shouldn't fail, as points in the path should be close enough to the player
                 #But sometimes it does.
                 try:
-                    if self.map[point] not in BLOCKS_WALKABLE:
+                    if self.map[point] not in walkableBlocks:
                         found = False
                         break
                 except BlockNotLoadedError:
@@ -102,13 +106,14 @@ class MCFancyClient(object):
                 #    (path[i-1].x==point.x==path[i+1].x and path[i-1].z==point.z==path[i+1].z) or \
                 #    (path[i-1].y==point.y==path[i+1].y and path[i-1].z==point.z==path[i+1].z) ):
                 #    continue
-                for v in self.command_moveTowards(point, lookTowardsWalk): yield v
+                for v in self.command_moveTowards(point,
+                    lookTowardsWalk=lookTowardsWalk,
+                    destructive=destructive): yield v
             
             if found and complete:
                 return
 
-    def command_moveTowards(self, position, lookTowardsWalk=False, threshold=0.1, speed=None):
-        
+    def command_moveTowards(self, position, lookTowardsWalk=False, threshold=0.1, speed=None, destructive=False):
         if speed is None:
             speed = self.speed
         
@@ -127,7 +132,30 @@ class MCFancyClient(object):
             if abs(dx) < abs(dmx): dmx = dx
             if abs(dy) < abs(dmy): dmy = dy
             if abs(dz) < abs(dmz): dmz = dz
-            self.pos = Point(self.pos.x+dmx, self.pos.y+dmy, self.pos.z+dmz)
+            
+            target = Point(self.pos.x+dmx, self.pos.y+dmy, self.pos.z+dmz)
+            
+            if destructive:
+                #Assume there are no blocks between cur pos and target.
+                #i.e. axis aligned path
+                #TODO: raycast to destroy blocks
+                #print "ping", target
+                if dy >= 0:
+                    #make sure any possible overlap
+                    #for i in xrange(1<<4):
+                    #    x, y, z = target
+                    #    if i&(1<<0): x = iceil(x)
+                    #    if i&(1<<1): y = iceil(y)
+                    #    if i&(1<<2): z = iceil(z)
+                    self.breakBlock(Point(target.x, target.y, target.z))
+                    self.breakBlock(Point(target.x, target.y+1, target.z))
+                else:
+                    self.breakBlock(Point(target.x, target.y+1, target.z))
+                    self.breakBlock(Point(target.x, target.y, target.z))
+                yield True
+                    
+            
+            self.pos = target
             self.headY = self.pos.y+1.62
             
             lookTarget = self.lookTarget or (lookTowardsWalk and position)
@@ -152,18 +180,23 @@ class MCFancyClient(object):
         
         self.protocol.sendPacked(TYPE_PLAYERLOOK, direction, pitch, 1)
     
-    def breakBlock(self, position):
+    def breakBlock(self, position, hits=None):
         position = Point(*map(ifloor, position))
-        self.lookAt(Point(position.x+0.5, position.y+0.5, position.z+0.5))
+        positionCenter = Point(position.x+0.5, position.y+0.5, position.z+0.5)
         
         block = self.map[position]
+        
+        #print "prebreak", position, block
+        
         if block in BLOCKS_UNBREAKABLE: return
-        hits = gamelogic.calcHitsToBreakBlock(-1, block)
         
-        dx, dy, dz = self.pos - position
+        self.lookAt(positionCenter)
+        
+        if hits is None:
+            hits = gamelogic.calcHitsToBreakBlock(self, -1, block)
+        
+        dx, dy, dz = Point(self.pos.x, self.headY, self.pos.z) - positionCenter
         face = gamelogic.getFace(dx, dy, dz)
-        
-        print "break", hits, face
         
         for i in xrange(hits):
             self.protocol.sendPacked(TYPE_PLAYERBLOCKDIG, 1, position.x, position.y, position.z, face)
@@ -214,6 +247,7 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
             TYPE_PLAYERPOSITION: self._handlePlayerPosition,
             TYPE_PLAYERPOSITIONLOOK: self._handlePlayerPositionLook,
             
+            TYPE_MOBSPAWN: self._handleMobSpawn,
             TYPE_NAMEDENTITYSPAWN: self._handleNamedEntitySpawn,
             TYPE_ENTITYMOVE: self._handleEntityMove,
             TYPE_ENTITYMOVELOOK: self._handleEntityMoveLook,
@@ -229,12 +263,13 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
         
         self.client = MCFancyClient(self)
         
+        from SimpleXMLRPCServer import SimpleXMLRPCServer
         rpcServer = SimpleXMLRPCServer(('', 1120), allow_none=True)
         rpcServer.register_introspection_functions()
         rpcServer.register_instance(self, allow_dotted_names=True)
         thread.start_new_thread(rpcServer.serve_forever, ())
     
-    #for rpc debug purposes.
+    #HACK for rpc debug purposes.
     def tmpEvl(self, exp):
         return repr(eval(exp, globals(), locals()))
     def tmpExc(self, exp):
@@ -246,7 +281,7 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
         #baconbot
         #self.sendPacked(TYPE_ITEMSWITCH, ITEM_COOKEDMEAT)
         
-        #
+        #Start main game "tick" loop
         thread.start_new_thread(self.client.run, ())
         
     def _handleChat(self, parts):
@@ -255,7 +290,8 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
         message, = parts
         
         #Baconbot
-        commandMatch = re.match("<?(?:\xC2\xA7.)*(.*?):?(?:\xC2\xA7.)*>?\\s*"+self.factory.botname+"[,.:\\s]\\s*(.*)\\s*", message)
+        commandMatch = re.match("<?(?:\xC2\xA7.)*(.*?):?(?:\xC2\xA7.)*>?\\s*%s[,.:\\s]\\s*(.*)\\s*" %
+                                    self.factory.botname, message)
         if commandMatch:
             name = commandMatch.group(1)
             #if name != "espes":
@@ -263,6 +299,9 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
             command = commandMatch.group(2)
             
             print "Command", repr(command)
+            
+            #Disabled because dropping is broken
+            """
             matchBacon = re.match(r"gimm?eh? (fried )?bacon", command)
             if matchBacon:
                 print "Giving bacon"
@@ -283,7 +322,7 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
                 if player:
                     x, y, z = player.pos
                     self.sendPacked(TYPE_PICKUPSPAWN, 0, item, 1, 400, x*32, y*32, z*32, 0, 0, 0)
-            
+            """
             warpMatch = re.match(r"warp\s+(.*)\s*", command)
             if warpMatch:
                 self.sendPacked(TYPE_CHAT, "/warp %s" % warpMatch.group(1))
@@ -304,7 +343,7 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
                 else:
                     print "couldn't find", followName
                     self.sendPacked(TYPE_CHAT, "I'm afraid I cannot do that, %s" % name)
-            elif command == "quit following":
+            elif command.startswith("quit following"):
                 print "quit following"
                 for c in self.client.commandQueue:
                     if c.__name__ == self.client.command_followEntity.__name__:
@@ -351,35 +390,38 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
         
         self.sendPacked(TYPE_PLAYERPOSITIONLOOK, x, y, stance, z, rotation, pitch, 1)
         
-        
+    def _handleMobSpawn(self, parts):
+        entityId, type, x, y, z, rotation, pitch, metaData = parts
+        self.client.entities[entityId] = Mob(entityId, Point(x/32, y/32, z/32), type)
     def _handleNamedEntitySpawn(self, parts):
         entityId, name, x, y, z, rotation, pitch, item = parts
-        self.client.players[entityId] = Player(entityId, name, Point(x/32, y/32, z/32))
+        self.client.entities[entityId] = Player(entityId, Point(x/32, y/32, z/32), name)
+        self.client.players[entityId] = self.client.entities[entityId]
     def _handleEntityMove(self, parts):
         entityId, dx, dy, dz = parts
-        if entityId in self.client.players:
-            self.client.players[entityId].pos.x += dx / 32
-            self.client.players[entityId].pos.y += dy / 32
-            self.client.players[entityId].pos.z += dz / 32
+        if entityId in self.client.entities:
+            self.client.entities[entityId].pos.x += dx / 32
+            self.client.entities[entityId].pos.y += dy / 32
+            self.client.entities[entityId].pos.z += dz / 32
     def _handleEntityMoveLook(self, parts):
         entityId, dx, dy, dz, rotation, pitch = parts
         
-        if entityId in self.client.players:
-            #print "a", rotation
-            
-            self.client.players[entityId].pos.x += dx / 32
-            self.client.players[entityId].pos.y += dy / 32
-            self.client.players[entityId].pos.z += dz / 32
+        if entityId in self.client.entities:
+            self.client.entities[entityId].pos.x += dx / 32
+            self.client.entities[entityId].pos.y += dy / 32
+            self.client.entities[entityId].pos.z += dz / 32
     def _handleEntityTeleport(self, parts):
         entityId, x, y, z, rotation, pitch = parts
-        if entityId in self.client.players:
-            self.client.players[entityId].pos = Point(x/32, y/32, z/32)
+        if entityId in self.client.entities:
+            self.client.entities[entityId].pos = Point(x/32, y/32, z/32)
     def _handleDestroyEntity(self, parts):
         entityId, = parts
+        if entityId in self.client.entities:
+            del self.client.entities[entityId]
         if entityId in self.client.players:
             del self.client.players[entityId]
     def _handleChunk(self, parts):
-        x, y, z, sizeX, sizeY, sizeZ, blockTypes = parts
+        (x, y, z), (sizeX, sizeY, sizeZ), blockTypes = parts
         #print "chunk", x, y, z, " - ", sizeX, sizeY, sizeZ
         self.client.map.addChunk(Chunk(Point(x, y, z), (sizeX, sizeY, sizeZ), blockTypes))
         
@@ -406,6 +448,9 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
                 chunk[place] = type
     def _handleComplexEntity(self, parts):
         x, y, z, payload = parts
+        
+        from pymclevel import nbt
+        import gzip, StringIO
         
         stringFile = StringIO.StringIO(payload)
         gzipFile = gzip.GzipFile(fileobj = stringFile, mode = 'rb')
