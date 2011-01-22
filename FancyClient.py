@@ -4,6 +4,8 @@
 
 from __future__ import division
 
+from twisted.internet import reactor
+
 import re
 import time
 import math
@@ -40,6 +42,7 @@ class MCFancyClient(object):
         self.speed = 6#block/s
         self.targetTick = 0.2
         
+        self.running = False
         self.commandQueue = []
     
     def _mapPlayersUpdate(self):
@@ -216,8 +219,11 @@ class MCFancyClient(object):
             self.map[position.x, position.y, position.z] = type
         except BlockNotLoadedError:
             print "wtf"
+    def stop(self):
+        self.running = False
     def run(self):
-        while True:
+        self.running = True
+        while self.running:
             startTime = time.time()
             
             #self.protocol.sendPacked(TYPE_PLAYERONGROUND, 1)
@@ -282,7 +288,9 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
         #self.sendPacked(TYPE_ITEMSWITCH, ITEM_COOKEDMEAT)
         
         #Start main game "tick" loop
-        thread.start_new_thread(self.client.run, ())
+        reactor.callInThread(self.client.run)
+        reactor.addSystemEventTrigger('before', 'shutdown', self.client.stop)
+        #thread.start_new_thread(self.client.run, ())
         
     def _handleChat(self, parts):
         MCBaseClientProtocol._handleChat(self, parts)

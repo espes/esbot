@@ -3,16 +3,18 @@
 # - espes
 
 import urllib
-from twisted.internet.protocol import Protocol
+from twisted.internet import reactor, protocol
 
 from constants import *
 
 from DataBuffer import DataBuffer
 
-class MCBaseClientProtocol(Protocol):
+class MCBaseClientProtocol(protocol.Protocol):
     def sendPacked(self, mtype, *args):
         fmt = TYPE_FORMATS[mtype]
-        self.transport.write(chr(mtype) + fmt.encode(*args))
+        
+        #self.transport.write(chr(mtype) + fmt.encode(*args))
+        reactor.callFromThread(self.transport.write, chr(mtype) + fmt.encode(*args))
     
     def connectionMade(self):
         self.buffer = ""
