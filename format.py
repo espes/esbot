@@ -61,21 +61,23 @@ class MultiBlockChangeFormat(Format):
         
 
 
-class InventoryFormat(Format):
+class WindowItemsFormat(Format):
     def __init__(self):
         pass
     def decode(self, dataBuffer):
         type, count = readStruct("!bh", dataBuffer)
         
         yield type
-        yield count
+        #yield count
         
+        items = {}
         for i in xrange(count):
             itemId, = readStruct("!h", dataBuffer)
             if itemId == -1: continue
             
             count, health = readStruct("!bh", dataBuffer)
-            yield (itemId, count, health)
+            items[i] = (itemId, count, health)
+        yield items
 
 
 class SetSlotFormat(Format):
@@ -84,9 +86,24 @@ class SetSlotFormat(Format):
     def decode(self, dataBuffer):
         type, slot, itemId = readStruct("!bhh", dataBuffer)
         
+        yield type
+        yield slot
+        
         if itemId >= 0:
             count, health = readStruct("!bh", dataBuffer)
+            yield (itemId, count, health)
+        else:
+            yield None
 
+class WindowClickFormat(Format):
+    def __init__(self):
+        pass
+    def encode(self, windowId, slot, rightClick, actionNumber, item):
+        if item is None:
+            return struct.pack("!bhbhh", windowId, slot, rightClick, actionNumber, -1)
+        else:
+            itemId, count, uses = item
+            return struct.pack("!bhbhhbh", windowId, slot, rightClick, actionNumber, itemId, count, uses)
 
 class ExplosionFormat(Format):
     def __init__(self):
@@ -99,9 +116,14 @@ class ExplosionFormat(Format):
 class BlockPlaceFormat(Format):
     def __init__(self):
         pass
+    def encode(self, x, y, z, direction, item):
+        if item is None:
+            return struct.pack("!ibibh", x, y, z, direction, -1)
+        else:
+            itemId, count, uses = item
+            return struct.pack("!ibibhbh", x, y, z, direction, itemId, count, uses)
     def decode(self, dataBuffer):
         x, y, z, face, itemId = readStruct("!ibibh", dataBuffer)
-        
         if itemId >= 0:
             count, health = readStruct("!bb", dataBuffer)
 

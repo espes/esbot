@@ -21,15 +21,32 @@ def iceil(n):
 class Point(object):
     def __init__(self, x, y, z):
         self.x, self.y, self.z = x, y, z
+    def mag(self):
+        return (self.x**2+self.y**2+self.z**2)**0.5
     def __iter__(self):
         yield self.x
         yield self.y
         yield self.z
     def __repr__(self):
         return "Point(x=%r, y=%r, z=%r)" % tuple(self)
-    
+    def __add__(self, other):
+        ox, oy, oz = other
+        return Point(self.x+ox, self.y+oy, self.z+oz)
+    def __iadd__(self, other):
+        ox, oy, oz = other
+        self.x += ox
+        self.y += oy
+        self.z += oz
     def __sub__(self, other):
-        return self.x-other.x, self.y-other.y, self.z-other.z
+        ox, oy, oz = other
+        return Point(self.x-ox, self.y-oy, self.z-oz)
+    def __isub__(self, other):
+        ox, oy, oz = other
+        self.x -= ox
+        self.y -= oy
+        self.z -= oz
+        
+    
 
 
 class Entity(object):
@@ -56,6 +73,16 @@ class WorldObject(Entity):
     def __repr__(self):
         return "WorldObject(id=%r, pos=%r, type=%r)" % (self.id, self.pos, self.type)
 
+class Item(object):
+    def __init__(self, itemId, count, health):
+        self.itemId, self.count, self.health = itemId, count, health
+    def __iter__(self):
+        yield self.itemId
+        yield self.count
+        yield self.health
+    def __repr__(self):
+        return "Item(itemId=%r, count=%r, health=%r)" % (self.itemId, self.count, self.health)
+
 class MapPlayer(object):
     def __init__(self, name, pos):
         self.name, self.pos = name, pos
@@ -81,8 +108,7 @@ class BlockNotLoadedError(Exception):
 class TimeoutError(Exception):
     pass
 class Map(object):
-    def __init__(self, client):
-        self.client = client
+    def __init__(self):
         
         self.chunks = {}
         
@@ -145,10 +171,10 @@ class Map(object):
         while True:
             pos = q.popleft()
             if time.time()-startTime > timeout:
-                print ((pos.x-source.x)**2+(pos.y-source.y)**2+(pos.z-source.z)**2)**0.5
+                print (pos-source).mag()
                 raise TimeoutError
             for dx, dy, dz in zip(self.adjX, self.adjY, self.adjZ):
-                npos = Point(pos.x+dx, pos.y+dy, pos.z+dz)
+                npos = pos + (dx, dy, dz)
                 if tuple(npos) in visited: continue
                 try:
                     if self[npos] == targetBlock:
@@ -161,7 +187,12 @@ class Map(object):
         
         return None
         
-    def findPath(self, start, end, acceptIncomplete=False, threshold=None, destructive=False):
+    def findPath(self, start, end,
+            acceptIncomplete=False,
+            threshold=None,
+            destructive=False,
+            blockBreakPenalty=None,
+            forClient=None):
         walkableBlocks = BLOCKS_WALKABLE
         if destructive:
             walkableBlocks |= BLOCKS_BREAKABLE
@@ -190,7 +221,8 @@ class Map(object):
         class AStarNode(Point):
             def __init__(self, *args):
                 Point.__init__(self, *args)
-                self.dist = ((end.x-self.x)**2+(end.y-self.y)**2+(end.z-self.z)**2)**0.5
+                #self.dist = ((end.x-self.x)**2+(end.y-self.y)**2+(end.z-self.z)**2)**0.5
+                self.dist = (end-self).mag()
                 
                 try:
                     self.blockId = mapInstance[self]
@@ -200,12 +232,15 @@ class Map(object):
                     self.available = False
                 
                 if destructive and self.blockId in BLOCKS_BREAKABLE:
-                    #TODO: estimate using number of hits
+                    if blockBreakPenalty is not None:
+                        self.dist += blockBreakPenalty
+                    elif forClient:
+                        #TODO: estimate using number of hits
                     
-                    #takes about 3? game ticks to clear the blocks
-                    mineTime = mapInstance.client.targetTick*3
-                    mineDistance = mapInstance.client.speed*mineTime
-                    self.dist += mineDistance
+                        #takes about 3? game ticks to clear the blocks
+                        mineTime = forClient.targetTick*3
+                        mineDistance = forClient.speed*mineTime
+                        self.dist += mineDistance
                 
         
         startNode = AStarNode(*map(ifloor, start))
@@ -223,8 +258,8 @@ class Map(object):
                 continue
             if tuple(node) == tuple(endNode) or \
                     ((not node.available) and acceptIncomplete) or \
-                    (threshold is not None and \
-                        ((node.x-end.x)**2+(node.y-end.y)**2+(node.z-end.z)**2)**0.5 <= threshold):
+                    (threshold is not None and node.dist <= threshold):
+                        #((node.x-end.x)**2+(node.y-end.y)**2+(node.z-end.z)**2)**0.5 <= threshold):
                 
                 found = node
                 break

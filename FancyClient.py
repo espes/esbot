@@ -15,6 +15,7 @@ import urllib
 
 from constants import *
 from Utility import *
+from Inventory import *
 
 #unneeded
 from Builder import Builder
@@ -37,7 +38,14 @@ class MCFancyClient(object):
         self.mapPlayers = {}
         #self._mapPlayersUpdate()
         
-        self.map = Map(self)
+        self.map = Map()
+        
+        #self.inventories = defaultdict(dict)
+        #self.equippedSlot = None
+        #self.transactionCallbacks = {}
+        #self.windowOpenCallbacks = {}
+        self.inventoryHandler = InventoryHandler(self.protocol)
+        self.playerInventory = self.inventoryHandler.windows[0]
         
         self.speed = 6#block/s
         self.targetTick = 0.2
@@ -64,14 +72,17 @@ class MCFancyClient(object):
             try:
                 pos = self.entities[entityId].pos
             except KeyError:
+                print "No entity %d" % entityId
                 yield False
                 return
             
             for v in self.command_walkPathToPoint(pos, True, targetThreshold=4):
                 yield v
-                #if v == False:
-                #    return
-    def command_walkPathToPoint(self, targetPoint, lookTowardsWalk=False, targetThreshold=None, destructive=False):
+    def command_walkPathToPoint(self, targetPoint,
+                lookTowardsWalk=False,
+                targetThreshold=None,
+                
+                destructive=False, blockBreakPenalty=None):
         walkableBlocks = BLOCKS_WALKABLE
         if destructive:
             walkableBlocks |= BLOCKS_BREAKABLE
@@ -82,7 +93,7 @@ class MCFancyClient(object):
             #print "finding path"
             try:
                 path, complete = self.map.findPath(self.pos, targetPoint, True, targetThreshold,
-                                    destructive=destructive)
+                                    destructive=destructive, blockBreakPenalty=None)
                 if path is None:
                     print "findpath failed"
                     yield False
@@ -120,13 +131,15 @@ class MCFancyClient(object):
         if speed is None:
             speed = self.speed
         
-        while ((position.x-self.pos.x)**2+\
-                (position.y-self.pos.y)**2+\
-                (position.z-self.pos.z)**2)**0.5 > threshold:
+        while (position - self.pos).mag() > threshold:
+            #((position.x-self.pos.x)**2+\
+            #        (position.y-self.pos.y)**2+\
+            #        (position.z-self.pos.z)**2)**0.5 > threshold:
             
-            dx = position.x - self.pos.x
-            dy = position.y - self.pos.y
-            dz = position.z - self.pos.z
+            dx, dy, dz = position - self.pos
+            #dx = position.x - self.pos.x
+            #dy = position.y - self.pos.y
+            #dz = position.z - self.pos.z
             
             highest = max(map(abs, (dx, dy, dz)))
             dmx = (dx/highest)*speed*self.targetTick
@@ -136,7 +149,8 @@ class MCFancyClient(object):
             if abs(dy) < abs(dmy): dmy = dy
             if abs(dz) < abs(dmz): dmz = dz
             
-            target = Point(self.pos.x+dmx, self.pos.y+dmy, self.pos.z+dmz)
+            target = self.pos + (dmx, dmy, dmz)
+            #target = Point(self.pos.x+dmx, self.pos.y+dmy, self.pos.z+dmz)
             
             if destructive:
                 #Assume there are no blocks between cur pos and target.
@@ -150,11 +164,16 @@ class MCFancyClient(object):
                     #    if i&(1<<0): x = iceil(x)
                     #    if i&(1<<1): y = iceil(y)
                     #    if i&(1<<2): z = iceil(z)
-                    self.breakBlock(Point(target.x, target.y, target.z))
-                    self.breakBlock(Point(target.x, target.y+1, target.z))
+                    
+                    #self.breakBlock(Point(target.x, target.y, target.z))
+                    #self.breakBlock(Point(target.x, target.y+1, target.z))
+                    self.breakBlock(target)
+                    self.breakBlock(target+(0, 1, 0))
                 else:
-                    self.breakBlock(Point(target.x, target.y+1, target.z))
-                    self.breakBlock(Point(target.x, target.y, target.z))
+                    self.breakBlock(target+(0, 1, 0))
+                    self.breakBlock(target)
+                    #self.breakBlock(Point(target.x, target.y+1, target.z))
+                    #self.breakBlock(Point(target.x, target.y, target.z))
                 yield True
                     
             
@@ -167,12 +186,15 @@ class MCFancyClient(object):
                 direction = math.degrees(math.atan2(lookTarget.z-self.pos.z, lookTarget.x-self.pos.x))-90
                 pitch = -math.degrees(math.atan2(lookTarget.y-self.headY, horizontalDistance))
                 
-                self.protocol.sendPacked(TYPE_PLAYERPOSITIONLOOK, self.pos.x, self.pos.y, self.headY, self.pos.z, direction, pitch, 1)
+                self.protocol.sendPacked(TYPE_PLAYERPOSITIONLOOK,
+                    self.pos.x, self.pos.y, self.headY, self.pos.z, direction, pitch, 1)
             else:
-                self.protocol.sendPacked(TYPE_PLAYERPOSITION, self.pos.x, self.pos.y, self.headY, self.pos.z, 1)
+                self.protocol.sendPacked(TYPE_PLAYERPOSITION,
+                    self.pos.x, self.pos.y, self.headY, self.pos.z, 1)
             
             yield True
     
+    #TODO: Move inventory stuff into class
     def lookAt(self, position):
         dx = position.x - self.pos.x
         dy = position.y - self.headY
@@ -183,15 +205,16 @@ class MCFancyClient(object):
         
         self.protocol.sendPacked(TYPE_PLAYERLOOK, direction, pitch, 1)
     
-    def breakBlock(self, position, hits=None):
+    def breakBlock(self, position, hits=None, destroyWalkable=False):
         position = Point(*map(ifloor, position))
-        positionCenter = Point(position.x+0.5, position.y+0.5, position.z+0.5)
+        positionCenter = position + (0.5, 0.5, 0.5)
         
         block = self.map[position]
         
         #print "prebreak", position, block
         
         if block in BLOCKS_UNBREAKABLE: return
+        if (not destroyWalkable) and block in BLOCKS_WALKABLE: return
         
         self.lookAt(positionCenter)
         
@@ -209,16 +232,49 @@ class MCFancyClient(object):
         
         self.map[tuple(position)] = BLOCK_AIR
         
-    def placeBlock(self, position, type):
-        position = Point(*map(ifloor, position))
-        self.lookAt(Point(position.x+0.5, position.y+0.5, position.z+0.5))
+    def placeBlock(self, againstBlock):
+        position = Point(*map(ifloor, againstBlock))
+        positionCenter = position + (0.5, 0.5, 0.5)
+        self.lookAt(positionCenter)
         
-        #TODO: Fix
-        #self.protocol.sendPacked(TYPE_PLAYERBLOCKPLACE, type, position.x, position.y-1, position.z, 1)
-        try:
-            self.map[position.x, position.y, position.z] = type
-        except BlockNotLoadedError:
-            print "wtf"
+        face = gamelogic.getFace(*(self.pos-positionCenter))
+        facesPos = [ #TODO: Put into constants
+            (0, -1, 0),
+            (0, 1, 0),
+            (0, 0, -1),
+            (0, 0, 1),
+            (-1, 0, 0),
+            (1, 0, 0)
+        ]
+        
+        #assert self.inventoryHandler.currentWindow == self.playerInventory
+        if self.inventoryHandler.currentWindow is not self.playerInventory:
+            self.inventoryHandler.closeWindow()
+        
+        item = self.playerInventory.equippedItem
+        #item = self.inventories[0].get(self.equippedSlot)
+        
+        print "place", position, face, item
+        
+        self.protocol.sendPacked(TYPE_PLAYERBLOCKPLACE, position.x, position.y, position.z, face, item)
+        
+        if self.map[position] in (BLOCK_CHEST, BLOCK_FURNACE, BLOCK_LITFURNACE, BLOCK_CRAFTINGTABLE):
+            #activating, not placing
+            return True
+        
+        if item is not None and item.itemId in BLOCKS:
+            targetPos = position + facesPos[face]
+            targetBlock = self.map[targetPos]
+            self.map[targetPos] = item.itemId
+        
+        return True
+    
+    def getPlayerByName(self, name, fuzzy=False):
+        for player in self.players.itervalues():
+            if (fuzzy and player.name.lower() == name.lower()) or player.name == name:
+                return player
+        return None
+                
     def stop(self):
         self.running = False
     def run(self):
@@ -230,7 +286,9 @@ class MCFancyClient(object):
             
             if len(self.commandQueue) > 0:
                 try:
-                    self.commandQueue[0].next()
+                    v = self.commandQueue[0].next()
+                    if v == False: #Something broke
+                        self.commandQueue.pop(0)
                 except StopIteration:
                     self.commandQueue.pop(0)
             
@@ -265,6 +323,12 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
             TYPE_BLOCKCHANGE: self._handleBlockChange,
             TYPE_COMPLEXENTITY: self._handleComplexEntity,
             TYPE_MULTIBLOCKCHANGE: self._handleMultiBlockChange,
+            
+            TYPE_SETSLOT: self._handleSetSlot,
+            TYPE_WINDOWOPEN: self._handleWindowOpen,
+            TYPE_WINDOWCLOSE: self._handleWindowClose,
+            TYPE_WINDOWITEMS: self._handleWindowItems,
+            TYPE_TRANSACTION: self._handleTransaction,
         })
         
         self.client = MCFancyClient(self)
@@ -340,38 +404,35 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
                 if followName == "me":
                     followName = name.lower()
                 
-                for player in self.client.players.itervalues():
-                    if player.name.lower() == followName:
-                        print "following", followName
-                        for c in self.client.commandQueue:
-                            if c.__name__ == self.client.command_followEntity.__name__:
-                                self.client.commandQueue.remove(c)
-                        self.client.commandQueue.append(self.client.command_followEntity(player.id))
-                        break
+                player = self.client.getPlayerByName(followName, True)
+                if player:
+                    #remove existing follow commands
+                    for c in self.client.commandQueue:
+                        if c.__name__ == self.client.command_followEntity.__name__:
+                            self.client.commandQueue.remove(c)
+                    self.client.commandQueue.append(self.client.command_followEntity(player.id))
                 else:
                     print "couldn't find", followName
-                    self.sendPacked(TYPE_CHAT, "I'm afraid I cannot do that, %s" % name)
+                    #self.sendPacked(TYPE_CHAT, "I'm afraid I cannot do that, %s" % name)
             elif command.startswith("quit following"):
                 print "quit following"
                 for c in self.client.commandQueue:
                     if c.__name__ == self.client.command_followEntity.__name__:
                         self.client.commandQueue.remove(c)
             elif command == "come here":
-                for player in self.client.players.itervalues():
-                    if player.name == name:
-                    #if player.name in name:
-                        def walkCommand(pos, name):
-                            for v in self.client.command_walkPathToPoint(pos):
-                                yield v
-                                if v == False:
-                                    #print "I'm afraid I cannot do that, %s" % name
-                                    self.sendPacked(TYPE_CHAT, "I'm afraid I cannot do that, %s" % name)
-                                    return
-                        print "adding", name
-                        self.client.commandQueue.append(walkCommand(player.pos, name))
+                player = self.client.getPlayerByName(name)
+                if player:
+                    def walkCommand(pos, name):
+                        for v in self.client.command_walkPathToPoint(pos):
+                            if v == False:
+                                print "I'm afraid I cannot do that, %s" % name
+                                #self.sendPacked(TYPE_CHAT, "I'm afraid I cannot do that, %s" % name)
+                                return
+                            yield v
+                    print "adding", name
+                    self.client.commandQueue.append(walkCommand(player.pos, name))
             elif command == "spawn":
-                self.commandQueue = []
-                self.followingEntityId = None
+                self.client.commandQueue = []
                 self.sendPacked(TYPE_CHAT, "/spawn")
             
     
@@ -381,6 +442,7 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
     
     def _handlePlayerHealth(self, parts):
         hp, = parts
+        print "hp", hp
         self.client.hp = hp
     
     def _handlePlayerPosition(self, parts):
@@ -468,3 +530,58 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
         
         tag = nbt.load(buf=data)
         #print "Complex Entity", x, y, z, tag['id']
+    
+    def _handleSetSlot(self, parts):
+        windowId, slot, item = parts
+        print "Slot", windowId, slot, item
+        
+        if item is not None:
+            item = Item(*item)
+        self.client.inventoryHandler.onSetSlot(windowId, slot, item)
+        
+        """
+        if windowId < 0: return
+        #window and slot id == -1 means item on cursor
+        
+        print "->", self.client.inventories[windowId]
+        
+        
+        if item is None:
+            if self.client.inventories[windowId].has_key(slot):
+                del self.client.inventories[windowId][slot]
+        else:
+            self.client.inventories[windowId][slot] = Item(*item)
+        """
+    def _handleWindowOpen(self, parts):
+        windowId, windowType, windowTitle, numSlots = parts
+        print "window open", parts
+        self.client.inventoryHandler.onWindowOpen(
+            windowId, windowType, windowTitle, numSlots)
+        #if windowType in self.client.windowOpenCallbacks:
+        #    print "callback"
+        #    self.client.windowOpenCallbacks[windowType](windowId, windowTitle, numSlots)
+        #    del self.client.windowOpenCallbacks[windowType]
+    def _handleWindowClose(self, parts):
+        windowId, = parts
+        self.client.inventoryHandler.onWindowClose(windowId)
+    def _handleWindowItems(self, parts):
+        windowId, items = parts
+        print "Items", windowId, items
+        
+        for slot, (itemId, count, health) in items.iteritems():
+            items[slot] = Item(itemId, count, health)
+        
+        self.client.inventoryHandler.onWindowItems(windowId, items)
+        
+        #self.client.inventories[windowId] = items
+    def _handleTransaction(self, parts):
+        windowId, actionNumber, accepted = parts
+        print "transaction", windowId, actionNumber, accepted
+        
+        self.client.inventoryHandler.onTransaction(
+            windowId, actionNumber, accepted)
+        
+        #if (windowId, actionNumber) in self.client.transactionCallbacks:
+        #    self.client.transactionCallbacks[(windowId, actionNumber)](accepted)
+        #    del self.client.transactionCallbacks[(windowId, actionNumber)]
+        
