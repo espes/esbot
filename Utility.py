@@ -221,7 +221,6 @@ class Map(object):
         class AStarNode(Point):
             def __init__(self, *args):
                 Point.__init__(self, *args)
-                #self.dist = ((end.x-self.x)**2+(end.y-self.y)**2+(end.z-self.z)**2)**0.5
                 self.dist = (end-self).mag()
                 
                 try:
@@ -259,7 +258,6 @@ class Map(object):
             if tuple(node) == tuple(endNode) or \
                     ((not node.available) and acceptIncomplete) or \
                     (threshold is not None and node.dist <= threshold):
-                        #((node.x-end.x)**2+(node.y-end.y)**2+(node.z-end.z)**2)**0.5 <= threshold):
                 
                 found = node
                 break
@@ -272,18 +270,6 @@ class Map(object):
                     continue
                 if newNode.available and (newNode.blockId not in walkableBlocks):
                     continue
-                
-                """
-                try:
-                    blockType = self[newNode]
-                except BlockNotLoadedError:
-                    newNode.available = False
-                    if not acceptIncomplete:
-                        continue
-                else:
-                    if blockType not in walkableBlocks:
-                        continue
-                """
                 
                 #Make sure the player can get through, player is 2 blocks vertically
                 try:

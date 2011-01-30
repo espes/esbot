@@ -40,10 +40,6 @@ class MCFancyClient(object):
         
         self.map = Map()
         
-        #self.inventories = defaultdict(dict)
-        #self.equippedSlot = None
-        #self.transactionCallbacks = {}
-        #self.windowOpenCallbacks = {}
         self.inventoryHandler = InventoryHandler(self.protocol)
         self.playerInventory = self.inventoryHandler.windows[0]
         
@@ -132,14 +128,8 @@ class MCFancyClient(object):
             speed = self.speed
         
         while (position - self.pos).mag() > threshold:
-            #((position.x-self.pos.x)**2+\
-            #        (position.y-self.pos.y)**2+\
-            #        (position.z-self.pos.z)**2)**0.5 > threshold:
             
             dx, dy, dz = position - self.pos
-            #dx = position.x - self.pos.x
-            #dy = position.y - self.pos.y
-            #dz = position.z - self.pos.z
             
             highest = max(map(abs, (dx, dy, dz)))
             dmx = (dx/highest)*speed*self.targetTick
@@ -156,24 +146,12 @@ class MCFancyClient(object):
                 #Assume there are no blocks between cur pos and target.
                 #i.e. axis aligned path
                 #TODO: raycast to destroy blocks
-                #print "ping", target
                 if dy >= 0:
-                    #make sure any possible overlap
-                    #for i in xrange(1<<4):
-                    #    x, y, z = target
-                    #    if i&(1<<0): x = iceil(x)
-                    #    if i&(1<<1): y = iceil(y)
-                    #    if i&(1<<2): z = iceil(z)
-                    
-                    #self.breakBlock(Point(target.x, target.y, target.z))
-                    #self.breakBlock(Point(target.x, target.y+1, target.z))
                     self.breakBlock(target)
                     self.breakBlock(target+(0, 1, 0))
                 else:
                     self.breakBlock(target+(0, 1, 0))
                     self.breakBlock(target)
-                    #self.breakBlock(Point(target.x, target.y+1, target.z))
-                    #self.breakBlock(Point(target.x, target.y, target.z))
                 yield True
                     
             
@@ -347,9 +325,6 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
     
     def _handleLogin(self, parts):
         MCBaseClientProtocol._handleLogin(self, parts)
-        
-        #baconbot
-        #self.sendPacked(TYPE_ITEMSWITCH, ITEM_COOKEDMEAT)
         
         #Start main game "tick" loop
         reactor.callInThread(self.client.run)
@@ -538,29 +513,11 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
         if item is not None:
             item = Item(*item)
         self.client.inventoryHandler.onSetSlot(windowId, slot, item)
-        
-        """
-        if windowId < 0: return
-        #window and slot id == -1 means item on cursor
-        
-        print "->", self.client.inventories[windowId]
-        
-        
-        if item is None:
-            if self.client.inventories[windowId].has_key(slot):
-                del self.client.inventories[windowId][slot]
-        else:
-            self.client.inventories[windowId][slot] = Item(*item)
-        """
     def _handleWindowOpen(self, parts):
         windowId, windowType, windowTitle, numSlots = parts
         print "window open", parts
         self.client.inventoryHandler.onWindowOpen(
             windowId, windowType, windowTitle, numSlots)
-        #if windowType in self.client.windowOpenCallbacks:
-        #    print "callback"
-        #    self.client.windowOpenCallbacks[windowType](windowId, windowTitle, numSlots)
-        #    del self.client.windowOpenCallbacks[windowType]
     def _handleWindowClose(self, parts):
         windowId, = parts
         self.client.inventoryHandler.onWindowClose(windowId)
@@ -580,8 +537,4 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
         
         self.client.inventoryHandler.onTransaction(
             windowId, actionNumber, accepted)
-        
-        #if (windowId, actionNumber) in self.client.transactionCallbacks:
-        #    self.client.transactionCallbacks[(windowId, actionNumber)](accepted)
-        #    del self.client.transactionCallbacks[(windowId, actionNumber)]
         

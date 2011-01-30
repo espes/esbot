@@ -40,6 +40,7 @@ class MCBaseClientProtocol(protocol.Protocol):
         parseBuffer = DataBuffer(self.buffer)
         while parseBuffer.lenLeft() > 0:
             packetType = ord(parseBuffer.read(1))
+            
             #print "packet", hex(packetType)
             try:
                 format = TYPE_FORMATS[packetType]
@@ -55,8 +56,6 @@ class MCBaseClientProtocol(protocol.Protocol):
                 parts = list(format.decode(parseBuffer) or [])
             except IncompleteDataError:
                 break
-            #dataLength = parts.pop()
-            #self.buffer = self.buffer[dataLength+1:]
             self.buffer = parseBuffer.peek()
             
             #debug
@@ -86,7 +85,8 @@ class MCBaseClientProtocol(protocol.Protocol):
             'serverId': serverId
         })
         f = urllib.urlopen("http://www.minecraft.net/game/joinserver.jsp?%s" % params)
-        print repr(f.read())
+        ret = f.read()
+        print repr(ret)
         print "Done"
 
         self.sendPacked(TYPE_LOGIN, 8, self.factory.username, "Password", 0, 0)

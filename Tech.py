@@ -99,20 +99,7 @@ class TechCraftItem(TechItem):
             print "failed placing crafting table"
             yield False
             return
-        
-        """
-        
-        #Hack for inner function shit
-        state = [False, None, None, None] #done, id, title, numSlots
-        def callback(windowId, windowTitle, numSlots):
-            state[0] = True
-            state[1] = windowId
-            state[2] = windowTitle
-            state[3] = numSlots
-        client.windowOpenCallbacks[INVENTORYTYPE_WORKBENCH] = callback
-        
-        """
-        
+
         #hit it
         if not client.placeBlock(placePos):
             print "failed hitting crafing table"
@@ -120,17 +107,12 @@ class TechCraftItem(TechItem):
             return
         yield True
         
+        print "wait for open"
         #Wait for window to come up
         while not isinstance(client.inventoryHandler.currentWindow, WorkBenchInventory):
             yield True
         
         craftingWindow = client.inventoryHandler.currentWindow
-        
-        #print "wait for open"
-        #while not state[0]: #while window hasn't been displayed
-        #    yield True
-        #
-        #_, windowId, windowTitle, numSlots = state
         
         print "place items"
         
@@ -150,12 +132,6 @@ class TechCraftItem(TechItem):
         #TODO: Handle recipes better
         craftingWindow.items[0] = self.produced
         
-        #client.inventories[windowId][0] = self.produced
-        #while client.inventories[windowId].get(0) is None:
-        #    print "item was not crafted for some reason"
-        #    yield False
-        #    return
-        
         print "retrieve"
         
         emptySlot = craftingWindow.findPlayerEmptySlot()
@@ -172,11 +148,5 @@ class TechCraftItem(TechItem):
         for v in client.command_walkPathToPoint(placePos, destructive=True):
             yield v
         
-        
-        
-
 
 TECH_MAP = {}
-
-    #BLOCK_STONE: TechMineItem(BLOCK_STONE, )
-}
