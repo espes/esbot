@@ -19,6 +19,7 @@ from Inventory import *
 
 #unneeded
 from Builder import Builder
+from Tech import *
 
 
 class MCFancyClient(object):
@@ -27,6 +28,8 @@ class MCFancyClient(object):
         
         self.entities = {}
         self.players = {}
+        self.pickups = {}
+        self.entityDicts = [self.entities, self.players, self.pickups]
         
         self.spawnPos = Point(-1, -1, -1)
         self.pos = Point(-1, -1, -1)
@@ -72,16 +75,19 @@ class MCFancyClient(object):
                 yield False
                 return
             
-            for v in self.command_walkPathToPoint(pos, True, targetThreshold=4):
+            for v in self.command_walkPathToPoint(pos, targetThreshold=4):
                 yield v
     def command_walkPathToPoint(self, targetPoint,
-                lookTowardsWalk=False,
                 targetThreshold=None,
-                
-                destructive=False, blockBreakPenalty=None):
+                destructive=False, blockBreakPenalty=None,
+                lookTowardsWalk=False):
         walkableBlocks = BLOCKS_WALKABLE
         if destructive:
             walkableBlocks |= BLOCKS_BREAKABLE
+        
+        #if (not lookTowardsWalk) and self.lookTarget is None:
+        self.lookTarget = targetPoint
+        #    self.lookAt(self.lookTarget)
         
         targetPoint = Point(*targetPoint) #Make a copy so it doesn't change during pathfinding
         while True:
@@ -291,6 +297,7 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
             
             TYPE_MOBSPAWN: self._handleMobSpawn,
             TYPE_NAMEDENTITYSPAWN: self._handleNamedEntitySpawn,
+            TYPE_PICKUPSPAWN: self._handlePickupSpawn,
             TYPE_ENTITYMOVE: self._handleEntityMove,
             TYPE_ENTITYMOVELOOK: self._handleEntityMoveLook,
             TYPE_ENTITYTELEPORT: self._handleEntityTeleport,
@@ -442,6 +449,11 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
         entityId, name, x, y, z, rotation, pitch, item = parts
         self.client.entities[entityId] = Player(entityId, Point(x/32, y/32, z/32), name)
         self.client.players[entityId] = self.client.entities[entityId]
+    def _handlePickupSpawn(self, parts):
+        entityId, itemId, count, health, x, y, z, rotation, pitch, roll = parts
+        item = Item(itemId, count, health)
+        self.client.entities[entityId] = Pickup(entityId, Point(x/32, y/32, z/32), item)
+        self.client.pickups[entityId] = self.client.entities[entityId]
     def _handleEntityMove(self, parts):
         entityId, dx, dy, dz = parts
         if entityId in self.client.entities:
@@ -461,10 +473,9 @@ class MCFancyClientProtocol(MCBaseClientProtocol):
             self.client.entities[entityId].pos = Point(x/32, y/32, z/32)
     def _handleDestroyEntity(self, parts):
         entityId, = parts
-        if entityId in self.client.entities:
-            del self.client.entities[entityId]
-        if entityId in self.client.players:
-            del self.client.players[entityId]
+        for dct in self.client.entityDicts:
+            if entityId in dct:
+                del dct[entityId]
     def _handleChunk(self, parts):
         (x, y, z), (sizeX, sizeY, sizeZ), blockTypes = parts
         #print "chunk", x, y, z, " - ", sizeX, sizeY, sizeZ

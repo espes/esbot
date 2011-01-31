@@ -69,7 +69,7 @@ class Builder(object):
                 print "build", buildPoint
                 foundPath = True
                 for v in self.client.command_walkPathToPoint( \
-                        Point(buildPoint.x, buildPoint.y, buildPoint.z), False, 3):
+                        Point(buildPoint.x, buildPoint.y, buildPoint.z), 3):
                     if v == False:
                         foundPath = False
                         break

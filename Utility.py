@@ -66,6 +66,12 @@ class Player(Entity):
         self.name = name
     def __repr__(self):
         return "Player(id=%r, pos=%r, name=%r)" % (self.id, self.pos, self.name)
+class Pickup(Entity):
+    def __init__(self, id, pos, item):
+        Entity.__init__(self, id, pos)
+        self.item = item
+    def __repr__(self):
+        return "Pickup(id=%r, pos=%r, item=%r)" % (self.id, self.pos, self.item)
 class WorldObject(Entity):
     def __init__(self, id, pos, type):
         Entity.__init__(self, id, pos)
@@ -160,7 +166,7 @@ class Map(object):
             chunk[x-cx, y-cy, z-cz] = value
         else:
             raise BlockNotLoadedError
-    def searchForBlock(self, source, targetBlock, timeout=10):
+    def searchForBlock(self, source, targetBlock, timeout=10, maxDist=None):
         source = Point(*map(ifloor, source))
         
         startTime = time.time()
@@ -168,13 +174,14 @@ class Map(object):
         visited = {}
         visited[tuple(source)] = True
         q = deque([source])
-        while True:
+        while q:
             pos = q.popleft()
             if time.time()-startTime > timeout:
                 print (pos-source).mag()
                 raise TimeoutError
             for dx, dy, dz in zip(self.adjX, self.adjY, self.adjZ):
                 npos = pos + (dx, dy, dz)
+                if maxDist is not None and npos.mag() > maxDist: continue
                 if tuple(npos) in visited: continue
                 try:
                     if self[npos] == targetBlock:
@@ -189,7 +196,7 @@ class Map(object):
         
     def findPath(self, start, end,
             acceptIncomplete=False,
-            threshold=None,
+            threshold=None, 
             destructive=False,
             blockBreakPenalty=None,
             forClient=None):

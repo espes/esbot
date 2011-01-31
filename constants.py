@@ -117,6 +117,8 @@ TYPE_FORMATS = {
 
 
 BLOCKS = set()
+BLOCKS_NAMES = {}
+
 #blocks
 from pymclevel import materials, items
 import re
@@ -126,6 +128,7 @@ for id, name in enumerate(materials.names):
     varName = "BLOCK_"+re.sub(r"[\s\(\)]|(?:/.*)", "", name).upper()
     globals()[varName] = id
     BLOCKS.add(id)
+    BLOCKS_NAMES[id] = name
 
 BLOCKS = frozenset(BLOCKS)
 
@@ -294,11 +297,16 @@ MATERIAL_IRON = frozenset([
     BLOCK_SOLIDDIAMONDBLOCK,
 ])
 
+
+ITEMS = set()
+ITEMS_NAMES = {}
+
 #items
 for name, id in items.items.names.iteritems():
     varName = "ITEM_"+re.sub(r"[\s\(\)]", "", name).upper()
     globals()[varName] = id
-
+    ITEMS.add(id)
+    ITEMS_NAMES[id] = name
 
 ITEMS_TOOLLEVEL = {
     ITEM_WOODSWORD: 0,
@@ -365,6 +373,8 @@ ITEMS_AXE = frozenset([
     ITEM_IRONAXE,
     ITEM_DIAMONDAXE
 ])
+
+BLOCKITEM_NAMES = dict(BLOCKS_NAMES.items()+ITEMS_NAMES.items())
 
 
 OBJECT_BOAT = 1
