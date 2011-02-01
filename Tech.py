@@ -1,3 +1,5 @@
+from __future__ import division
+
 import copy
 from collections import defaultdict
 
@@ -5,17 +7,50 @@ from Utility import *
 from Inventory import *
 
 class Tech(object):
-    def __init__(self, depends):
+    def __init__(self, depends, consumes, producesCount=1):
         self.depends = depends
+        self.consumes = consumes
+        
+        self.produces = producesCount
     def clientHas(self, client):
         return True
+    def evaluateDeps(self, getCount=1, curGet=None, curHas=None):
+        #print "%r %r" % (self, getCount)
+        if curHas is None:
+            curHas = defaultdict(int)
+        if curGet is None:
+            curGet = defaultdict(int)
+        for dep, count in self.depends:
+            try:
+                iter(dep)
+            except TypeError:
+                pass
+            else:
+                dep = max(dep, key=lambda d: curHas[d])
+            
+            if count > curHas[dep]:
+                get = max(0, count-curHas[dep])/dep.produces
+                dep.evaluateDeps(get, curGet, curHas)
+                curHas[dep] += get
+            #for i in xrange(count-curHas[dep]):
+            #    curHas[dep] += 1
+            #    dep.evaluateDeps(curGet, curHas)
+        for dep, count in self.consumes:
+            get = getCount*count/dep.produces
+            dep.evaluateDeps(get, curGet, curHas)
+            curGet[dep] += get
+            
+            #curGet[dep] += count
+            #for i in xrange(count):
+            #    dep.evaluateDeps(curGet, curHas)
+        return curHas, curGet
     def command_get(self, client):
         print "getting %r" % self
         #TODO: dependency evaluation is really inefficient
         done = False
         while not done:
             done = True
-            for dep, count in self.depends:
+            for dep, count in self.depends+self.consumes:
                 print "dependency %d %r" % (count, dep)
                 while not dep.clientHas(client, count):
                     done = False
@@ -25,8 +60,8 @@ class Tech(object):
 
 #item representable in inventory
 class TechItem(Tech):
-    def __init__(self, depends, itemId):
-        Tech.__init__(self, depends)
+    def __init__(self, depends, consumes, itemId, producesCount=1):
+        Tech.__init__(self, depends, consumes, producesCount)
         self.itemId = itemId
     def __repr__(self):
         if self.itemId in BLOCKITEM_NAMES:
@@ -50,11 +85,20 @@ class TechItem(Tech):
 class TechMineItem(TechItem):
     def __init__(self, itemId, mineTool=None, mineItem=None):
         if mineTool is None:
-            TechItem.__init__(self, [], itemId)
+            TechItem.__init__(self, [], [], itemId)
         else:
-            if isinstance(mineTool, int):
-                mineTool = TECH_MAP[mineTool]
-            TechItem.__init__(self, [(mineTool, 1)], itemId)
+            try:
+                iter(mineTool)
+            except TypeError:
+                mineTool = [mineTool]
+            
+            mineOptions = []
+            for v in mineTool:
+                if isinstance(v, int):
+                    v = TECH_MAP[v]
+                mineOptions.append(v)
+            TechItem.__init__(self, [(mineOptions, 1)], [], itemId)
+            
         
         self.mineTool = mineTool
         self.mineItemId = mineItem or self.itemId
@@ -85,7 +129,7 @@ class TechMineItem(TechItem):
             destructive=True, blockBreakPenalty=5):
             yield v
 
-def buildDependsFromRecipe(recipe):
+def buildConsumesFromRecipe(recipe):
     depends = defaultdict(int)
     for tech in recipe:
         if tech is None: continue
@@ -109,8 +153,8 @@ def buildSlotsFromRecipe(recipe):
 #Tech made with the inventory crafting thing
 class TechAssembleItem(TechItem):
     def __init__(self, itemId, recipe, producedItem):
-        depends = buildDependsFromRecipe(recipe)
-        TechItem.__init__(self, depends, itemId)
+        consumes = buildConsumesFromRecipe(recipe)
+        TechItem.__init__(self, [], consumes, itemId, producedItem.count)
         
         self.recipe = recipe
         self.produced = producedItem
@@ -147,8 +191,8 @@ class TechAssembleItem(TechItem):
 #Tech made with crafting table
 class TechCraftItem(TechItem):
     def __init__(self, itemId, recipe, producedItem):
-        depends = [(TECH_MAP[BLOCK_CRAFTINGTABLE], 1)] + buildDependsFromRecipe(recipe)
-        TechItem.__init__(self, depends, itemId)
+        consumes = buildConsumesFromRecipe(recipe)
+        TechItem.__init__(self, [(TECH_MAP[BLOCK_CRAFTINGTABLE], 1)], consumes, itemId, producedItem.count)
         
         self.recipe = recipe
         self.produced = producedItem
