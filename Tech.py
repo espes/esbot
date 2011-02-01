@@ -48,7 +48,7 @@ class TechItem(Tech):
 
 #item that can just be mined somewhere
 class TechMineItem(TechItem):
-    def __init__(self, itemId, mineTool=None):
+    def __init__(self, itemId, mineTool=None, mineItem=None):
         if mineTool is None:
             TechItem.__init__(self, [], itemId)
         else:
@@ -57,39 +57,33 @@ class TechMineItem(TechItem):
             TechItem.__init__(self, [(mineTool, 1)], itemId)
         
         self.mineTool = mineTool
+        self.mineItemId = mineItem or self.itemId
     def command_get(self, client):
         for v in TechItem.command_get(self, client):
             yield v
-        
+        print "mineping"
         if self.mineTool is not None:
             #equipt the tool of choice (by now should have it in inventory)
-            for v in client.playerInventory.command_equipItem(self.mineTool):
+            for v in client.playerInventory.command_equipItem(self.mineTool.itemId):
                 yield v
         
-        #try 20 times
-        for count in xrange(20):
-            if self.clientHas(client):
-                return
-            
-            try:
-                print "finding block"
-                blockPos = client.map.searchForBlock(client.pos, self.itemId)
-            except TimeoutError:
-                print "timeout! block too far away!"
-                yield False
-                return
-            #TODO: Look for items on the ground
-            
-            if not blockPos:
-                break
+        try:
+            print "finding block"
+            blockPos = client.map.searchForBlock(client.pos, self.mineItemId)
+        except TimeoutError:
+            print "timeout! block too far away!"
+            yield False
+            return
+        #TODO: Look for items on the ground
+        
+        if not blockPos:
+            print "block not found"
+            yield False
+            return
 
-            for v in client.command_walkPathToPoint(blockPos,
-                destructive=True, blockBreakPenalty=5):
-                yield v
-        
-        print "mining item %d failed" % self.itemId
-        yield False
-        return
+        for v in client.command_walkPathToPoint(blockPos,
+            destructive=True, blockBreakPenalty=5):
+            yield v
 
 def buildDependsFromRecipe(recipe):
     depends = defaultdict(int)
@@ -167,7 +161,7 @@ class TechCraftItem(TechItem):
         for v in client.command_walkPathToPoint(client.pos + (0, 1, 0), destructive=True):
             yield v
         
-        #equipt crafting table
+        #equip crafting table
         for v in client.playerInventory.command_equipItem(BLOCK_CRAFTINGTABLE):
             yield v
         
@@ -244,18 +238,44 @@ TECH_MAP[BLOCK_DIRT] = TechMineItem(BLOCK_DIRT)
 TECH_MAP[BLOCK_TREETRUNK] = TechMineItem(BLOCK_TREETRUNK)
 TECH_MAP[BLOCK_WOOD] = TechAssembleItem(BLOCK_WOOD, [BLOCK_TREETRUNK], Item(BLOCK_WOOD, 4, 0))
 TECH_MAP[ITEM_STICK] = TechAssembleItem(ITEM_STICK,
-    [BLOCK_WOOD, None,
-     BLOCK_WOOD, None], Item(ITEM_STICK, 4, 0))
+            [BLOCK_WOOD, None,
+             BLOCK_WOOD, None], Item(ITEM_STICK, 4, 0))
 
 TECH_MAP[BLOCK_CRAFTINGTABLE] = TechAssembleItem(BLOCK_CRAFTINGTABLE,
-         [BLOCK_WOOD, BLOCK_WOOD,
-          BLOCK_WOOD, BLOCK_WOOD], Item(BLOCK_CRAFTINGTABLE, 1, 0))
+            [BLOCK_WOOD, BLOCK_WOOD,
+             BLOCK_WOOD, BLOCK_WOOD], Item(BLOCK_CRAFTINGTABLE, 1, 0))
+
+TECH_MAP[ITEM_BOAT] = TechCraftItem(ITEM_BOAT,
+            [None,          None,           None,
+             BLOCK_WOOD,    None,           BLOCK_WOOD,
+             BLOCK_WOOD,    BLOCK_WOOD,     BLOCK_WOOD], Item(ITEM_BOAT, 1, 0))
 
 TECH_MAP[ITEM_WOODPICKAXE] = TechCraftItem(ITEM_WOODPICKAXE,
-              [BLOCK_WOOD,    BLOCK_WOOD,     BLOCK_WOOD,
-               None,          ITEM_STICK,     None,
-               None,          ITEM_STICK,     None], Item(ITEM_WOODPICKAXE, 1, 0))
+            [BLOCK_WOOD,    BLOCK_WOOD,     BLOCK_WOOD,
+             None,          ITEM_STICK,     None,
+             None,          ITEM_STICK,     None], Item(ITEM_WOODPICKAXE, 1, 0))
+TECH_MAP[ITEM_WOODSWORD] = TechCraftItem(ITEM_WOODSWORD,
+            [None,  BLOCK_WOOD, None,
+             None,  BLOCK_WOOD, None,
+             None,  ITEM_STICK, None], Item(ITEM_WOODSWORD, 1, 0))
 
-TECH_MAP[BLOCK_COBBLESTONE] = TechMineItem(BLOCK_COBBLESTONE, ITEM_WOODPICKAXE)
+TECH_MAP[BLOCK_COBBLESTONE] = TechMineItem(BLOCK_COBBLESTONE, ITEM_WOODPICKAXE, BLOCK_STONE)
+TECH_MAP[ITEM_COAL] = TechMineItem(ITEM_COAL, ITEM_WOODPICKAXE, BLOCK_COALORE)
+
+TECH_MAP[ITEM_TORCH] = TechAssembleItem(ITEM_TORCH, 
+            [ITEM_COAL,     None,
+             ITEM_STICK,    None], Item(ITEM_TORCH, 4, 0))
+
+TECH_MAP[BLOCK_FURNACE] = TechCraftItem(BLOCK_FURNACE,
+            [BLOCK_COBBLESTONE, BLOCK_COBBLESTONE,  BLOCK_COBBLESTONE,
+             BLOCK_COBBLESTONE, None,               BLOCK_COBBLESTONE,
+             BLOCK_COBBLESTONE, BLOCK_COBBLESTONE,  BLOCK_COBBLESTONE], Item(BLOCK_FURNACE, 1, 0))
+
+TECH_MAP[ITEM_STONEPICKAXE] = TechCraftItem(ITEM_STONEPICKAXE,
+            [BLOCK_COBBLESTONE, BLOCK_COBBLESTONE,  BLOCK_COBBLESTONE,
+             None,              ITEM_STICK,         None,
+             None,              ITEM_STICK,         None], Item(ITEM_STONEPICKAXE, 1, 0))
+
+TECH_MAP[BLOCK_IRONORE] = TechMineItem(BLOCK_IRONORE, ITEM_STONEPICKAXE)
 
 
