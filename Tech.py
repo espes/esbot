@@ -14,36 +14,77 @@ class Tech(object):
         self.produces = producesCount
     def clientHas(self, client):
         return True
-    def evaluateDeps(self, getCount=1, curGet=None, curHas=None):
+    
+    def calcRequiredCounts(self, getCount=1, curGet=None, curHas=None, invHas=None):
         #print "%r %r" % (self, getCount)
+        top = False
         if curHas is None:
             curHas = defaultdict(int)
+            top = True
         if curGet is None:
             curGet = defaultdict(int)
+        if invHas is None:
+            invHas = defaultdict(int)
         for dep, count in self.depends:
             try:
                 iter(dep)
             except TypeError:
                 pass
             else:
-                dep = max(dep, key=lambda d: curHas[d])
+                dep = max(dep, key=lambda d: curHas[d]+invHas[d])
             
-            if count > curHas[dep]:
-                get = max(0, count-curHas[dep])/dep.produces
-                dep.evaluateDeps(get, curGet, curHas)
+            if count/dep.produces > curHas[dep]+invHas[dep]:
+                get = max(0, count/dep.produces-(curHas[dep]+invHas[dep]))
+                dep.calcRequiredCounts(get, curGet, curHas, invHas)
                 curHas[dep] += get
             #for i in xrange(count-curHas[dep]):
             #    curHas[dep] += 1
             #    dep.evaluateDeps(curGet, curHas)
         for dep, count in self.consumes:
             get = getCount*count/dep.produces
-            dep.evaluateDeps(get, curGet, curHas)
+            dep.calcRequiredCounts(get, curGet, curHas, invHas)
             curGet[dep] += get
             
             #curGet[dep] += count
             #for i in xrange(count):
             #    dep.evaluateDeps(curGet, curHas)
-        return curHas, curGet
+        #return curHas, curGet
+        if top:
+            for dep, count in curHas.iteritems():
+                curGet[dep] += count
+            for dep, count in invHas.iteritems():
+                if dep not in curHas and curGet[dep] > 0:
+                    curGet[dep] = max(0, curGet[dep]-invHas[dep])
+            
+            for dep, count in curGet.items():
+                if count == 0:
+                    del curGet[dep]
+            return curGet
+    def calcGetOrder(self, order=None, seen=None, validItems=None):
+        if seen is None:
+            seen = set([])
+        top = False
+        if order is None:
+            top = True
+            order = []
+        for dep, count in self.depends+self.consumes:
+            if dep not in seen and (validItems is None or dep not in validItems):
+                dep.calcGetOrder(order, seen)
+        order.append(self)
+        seen.add(self)
+        if top:
+            return order
+    def calcGetWithInventory(self, inventory):
+        invHas = defaultdict(int)
+        for slot, item in inventory.items.items():
+            if slot not in inventory.playerItemsRange: continue
+            tech = TECH_MAP.get(item.itemId)
+            if tech is None: continue
+            invHas[tech] += item.count/tech.producesCount
+        
+        getCounts = self.calcRequiredCounts(invHas=invHas)
+        order = self.calcGetOrder(validItems=set(getCounts.iterkeys()))
+        return [(tech, getCounts[tech]) for tech in order]
     def command_get(self, client):
         print "getting %r" % self
         #TODO: dependency evaluation is really inefficient
@@ -87,17 +128,18 @@ class TechMineItem(TechItem):
         if mineTool is None:
             TechItem.__init__(self, [], [], itemId)
         else:
-            try:
-                iter(mineTool)
-            except TypeError:
-                mineTool = [mineTool]
+            #try:
+            #    iter(mineTool)
+            #except TypeError:
+            #    mineTool = [mineTool]
             
-            mineOptions = []
-            for v in mineTool:
-                if isinstance(v, int):
-                    v = TECH_MAP[v]
-                mineOptions.append(v)
-            TechItem.__init__(self, [(mineOptions, 1)], [], itemId)
+            #mineOptions = []
+            #for v in mineTool:
+            #    if isinstance(v, int):
+            #        v = TECH_MAP[v]
+            #    mineOptions.append(v)
+            if isinstance(mineTool, int): mineTool = TECH_MAP[mineTool]
+            TechItem.__init__(self, [(mineTool, 1)], [], itemId)
             
         
         self.mineTool = mineTool
