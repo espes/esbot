@@ -1,9 +1,16 @@
+#MineBot
+#GPL and all that
+# - espes
+
+from __future__ import division
+
 import random
 
 from collections import defaultdict
 
 from Utility import *
 from constants import *
+from packets import *
 
 class InventoryHandler(object):
     def __init__(self, protocol):
@@ -19,7 +26,7 @@ class InventoryHandler(object):
             windowId = window.windowId
             assert windowId == self.currentWindowId
         
-        self.protocol.sendPacked(TYPE_WINDOWCLOSE, windowId)
+        self.protocol.sendPacked(PACKET_WINDOWCLOSE, windowId)
         self.onWindowClose(windowId)
     
     @property
@@ -104,7 +111,7 @@ class Inventory(object):
 
         print "click", slot, rightClick, self.windowId, transactionId, self.items.get(slot)
 
-        self.handler.protocol.sendPacked(TYPE_WINDOWCLICK, self.windowId, slot,
+        self.handler.protocol.sendPacked(PACKET_WINDOWCLICK, self.windowId, slot,
             rightClick, transactionId, self.items.get(slot))
         
         while self.transactionResult[transactionId] is None:
@@ -230,11 +237,11 @@ class PlayerInventory(Inventory):
         for slot, item in self.items.items():
             if item.itemId == itemId:
                 if slot in self.equippableSlots:
-                    self.handler.protocol.sendPacked(TYPE_ITEMSWITCH, self.equippableSlots.index(slot))
+                    self.handler.protocol.sendPacked(PACKET_ITEMSWITCH, self.equippableSlots.index(slot))
                     self.equippedSlot = slot
                 else:
                     for v in self.command_swapSlots(slot, self.equippableSlots[0]): yield v
-                    self.handler.protocol.sendPacked(TYPE_ITEMSWITCH, 0)
+                    self.handler.protocol.sendPacked(PACKET_ITEMSWITCH, 0)
                     self.equippedSlot = self.equippableSlots[0]
                 return
         print "No item %d" % itemId

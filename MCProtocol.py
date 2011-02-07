@@ -2,34 +2,40 @@
 #GPL and all that
 # - espes
 
+from __future__ import division
+
 import urllib
+from collections import defaultdict
 from twisted.internet import reactor, protocol
 
-from constants import *
+from packets import *
 
 from DataBuffer import DataBuffer
 
 class MCBaseClientProtocol(protocol.Protocol):
     def sendPacked(self, mtype, *args):
-        fmt = TYPE_FORMATS[mtype]
+        fmt = PACKET_FORMATS[mtype]
         
         #self.transport.write(chr(mtype) + fmt.encode(*args))
         reactor.callFromThread(self.transport.write, chr(mtype) + fmt.encode(*args))
+    
+    def addPacketHandlers(self, handlers):
+        for packetType, func in handlers.iteritems():
+            self.packetHandlers[packetType].append(func)
     
     def connectionMade(self):
         self.buffer = ""
         self.counter = 0
         
-        self.packetHandlers = {
-            TYPE_LOGIN: self._handleLogin,
-            TYPE_HANDSHAKE: self._handleHandshake,
-            TYPE_CHAT: self._handleChat,
-            TYPE_DISCONNECT: self._handleDisconnect
-        }
+        self.packetHandlers = defaultdict(list)
+        self.addPacketHandlers({
+           PACKET_LOGIN: self._handleLogin,
+           PACKET_HANDSHAKE: self._handleHandshake,
+           PACKET_CHAT: self._handleChat,
+           PACKET_DISCONNECT: self._handleDisconnect
+        })
         
-        self.otype = None
-        
-        self.sendPacked(TYPE_HANDSHAKE, self.factory.username)
+        self.sendPacked(PACKET_HANDSHAKE, self.factory.username)
 
     def connectionLost(self, reason):
         pass
@@ -43,7 +49,7 @@ class MCBaseClientProtocol(protocol.Protocol):
             
             #print "packet", hex(packetType)
             try:
-                format = TYPE_FORMATS[packetType]
+                format = PACKET_FORMATS[packetType]
             except KeyError:
                 print "invalid packet type"
                 print hex(packetType), len(self.buffer), repr(self.buffer)
@@ -58,15 +64,14 @@ class MCBaseClientProtocol(protocol.Protocol):
                 break
             self.buffer = parseBuffer.peek()
             
-            #debug
-            self.otype = packetType
-            
             self.counter += 1
-            if self.counter % 300 == 0:
-                self.sendPacked(TYPE_KEEPALIVE)
             
-            if packetType in self.packetHandlers:
-                ret = self.packetHandlers[packetType](parts)
+            #TODO: send the keepalive at some set interval
+            if self.counter % 300 == 0:
+                self.sendPacked(PACKET_KEEPALIVE)
+            
+            for handler in self.packetHandlers[packetType]:
+                ret = handler(parts)
                 if ret == False:
                     return
     
@@ -85,14 +90,13 @@ class MCBaseClientProtocol(protocol.Protocol):
             'serverId': serverId
         })
         f = urllib.urlopen("http://www.minecraft.net/game/joinserver.jsp?%s" % params)
-        ret = f.read()
-        print repr(ret)
+        print repr(f.read())
+        
         print "Done"
 
-        self.sendPacked(TYPE_LOGIN, 8, self.factory.username, "Password", 0, 0)
+        self.sendPacked(PACKET_LOGIN, 8, self.factory.username, "Password", 0, 0)
     def _handleChat(self, parts):
         message, = parts
-        #print
         print "Chat", repr(message)
     def _handleDisconnect(self, parts):
         reason, = parts

@@ -162,10 +162,8 @@ class EntityMetadataFormat(Format):
             5: Format('hbh')
         }
     def decode(self, dataBuffer):
-        #print repr(dataBuffer.peek()[:10])
         while True:
             x, = readStruct("!b", dataBuffer)
-            #print "x", hex(x)
             if x == 127: break
             yield tuple(self.formatMap[(x & 0xE0) >> 5].decode(dataBuffer))
         
