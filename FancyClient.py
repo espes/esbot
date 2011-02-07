@@ -189,6 +189,7 @@ class MCFancyClient(object):
         
         self.protocol.sendPacked(TYPE_PLAYERLOOK, direction, pitch, 1)
     
+    #must have line-of-sight to center of block
     def breakBlock(self, position, hits=None, destroyWalkable=False):
         position = Point(*map(ifloor, position))
         positionCenter = position + (0.5, 0.5, 0.5)

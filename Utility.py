@@ -357,7 +357,7 @@ class GameLogic(object):
         if item in ITEMS_TOOLS:
             level = ITEMS_TOOLLEVEL[item]
         if item in ITEMS_PICKAXE:
-            if block in frozenset([
+            if block in (
                 BLOCK_COBBLESTONE,
                 BLOCK_STAIR,
                 BLOCK_DOUBLESTAIR,
@@ -371,7 +371,7 @@ class GameLogic(object):
                 BLOCK_DIAMONDORE,
                 BLOCK_DIAMONDBLOCK,
                 BLOCK_ICE,
-                BLOCK_BLOODSTONE]): return (level+1)*2
+                BLOCK_BLOODSTONE): return (level+1)*2
         
         return 1
     
@@ -385,12 +385,13 @@ class GameLogic(object):
         
         if self.itemCanHarvestBlock(item, block):
             strength = self.itemStrVsBlock(item, block)
-            if client.map[client.pos] in (BLOCKS_WATER, BLOCKS_STATIONARYWATER):
+            if client.map[client.pos + (0, 1, 0)] in (BLOCKS_WATER, BLOCKS_STATIONARYWATER):
                 strength /= 5
             damagePerHit = strength / hardness / 30
         else:
             damagePerHit = 1 / hardness / 100
         
-        return int(1/damagePerHit + 2)
+        
+        return int(1/damagePerHit + 2) #Add 2 to be safe
 
 gamelogic = GameLogic()
