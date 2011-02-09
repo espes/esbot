@@ -66,7 +66,7 @@ class Builder(object):
                 except BlockNotLoadedError:
                     pass
                     
-                print "build", buildPoint
+                logging.debug("build %r" % buildPoint)
                 foundPath = True
                 for v in self.client.command_walkPathToPoint( \
                         Point(buildPoint.x, buildPoint.y, buildPoint.z), 3):
@@ -78,7 +78,7 @@ class Builder(object):
                     #Above it anyway, no need to check if it's not air
                     self.client.placeBlock(buildPoint, type)
                 else:
-                    print "skipping"
+                    logging.debug("skipping")
     
     def sphereBlocks(self, center, radius, type):
         center = Point(*map(ifloor, center))
@@ -152,7 +152,7 @@ class Builder(object):
                             continue
                     except BlockNotLoadedError:
                         pass
-                    print ">>", x, y, z
+                    #print ">>", x, y, z
                     
                     foundPath = True
                     for v in self.client.command_walkPathToPoint(Point(x, y+1, z)):

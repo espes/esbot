@@ -5,6 +5,7 @@
 from __future__ import division
 
 import urllib
+import logging
 from collections import defaultdict
 from twisted.internet import reactor, protocol
 
@@ -51,9 +52,8 @@ class MCBaseClientProtocol(protocol.Protocol):
             try:
                 format = PACKET_FORMATS[packetType]
             except KeyError:
-                print "invalid packet type"
-                print hex(packetType), len(self.buffer), repr(self.buffer)
-                print "last", self.otype
+                logging.error("invalid packet type - %x %r %r" % (packetType,
+                    len(self.buffer), self.buffer))
                 
                 self.transport.loseConnection()
                 return
@@ -77,30 +77,30 @@ class MCBaseClientProtocol(protocol.Protocol):
     
     def _handleLogin(self, parts):
         id, name, motd, mapSeed, dimension = parts
-        print "Server login", id, name, motd, mapSeed, dimension
+        logging.info("Server login %r %r %r %r %r" % (id, name, motd, mapSeed, dimension))
     def _handleHandshake(self, parts):
         serverId, = parts
 
-        print "Handshake", serverId
+        logging.info("Handshake: %r" % serverId)
 
-        print "Authing..."
+        logging.info("Authing...")
         params = urllib.urlencode({
             'user': self.factory.username,
             'sessionId': self.factory.sessionId,
             'serverId': serverId
         })
         f = urllib.urlopen("http://www.minecraft.net/game/joinserver.jsp?%s" % params)
-        print repr(f.read())
+        logging.debug(repr(f.read()))
         
-        print "Done"
+        logging.info("Done")
 
         self.sendPacked(PACKET_LOGIN, 8, self.factory.username, "Password", 0, 0)
     def _handleChat(self, parts):
         message, = parts
-        print "Chat", repr(message)
+        logging.info("Chat\t%r" % message)
     def _handleDisconnect(self, parts):
         reason, = parts
-        print "Disconnect!", reason
+        logging.info("Disconnect! - %r" % reason)
 
         self.transport.loseConnection()
         return False

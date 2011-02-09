@@ -21,33 +21,36 @@ class BotClient(object):
         self.botname = botname
         
         protocol.addPacketHandlers({
-           PACKET_SPAWNPOSITION: self._handleSpawnPosition,
-           PACKET_PLAYERHEALTH: self._handlePlayerHealth,
-           PACKET_PLAYERPOSITION: self._handlePlayerPosition,
-           PACKET_PLAYERPOSITIONLOOK: self._handlePlayerPositionLook,
+            PACKET_CHAT: self._handleChat,
             
-           PACKET_MOBSPAWN: self._handleMobSpawn,
-           PACKET_NAMEDENTITYSPAWN: self._handleNamedEntitySpawn,
-           PACKET_PICKUPSPAWN: self._handlePickupSpawn,
-           PACKET_ENTITYMOVE: self._handleEntityMove,
-           PACKET_ENTITYMOVELOOK: self._handleEntityMoveLook,
-           PACKET_ENTITYTELEPORT: self._handleEntityTeleport,
-           PACKET_DESTROYENTITY: self._handleDestroyEntity,
-            
-           PACKET_PRECHUNK: self._handlePreChunk,
-           PACKET_CHUNK: self._handleChunk,
-           PACKET_BLOCKCHANGE: self._handleBlockChange,
-           PACKET_COMPLEXENTITY: self._handleComplexEntity,
-           PACKET_MULTIBLOCKCHANGE: self._handleMultiBlockChange,
-            
-           PACKET_SETSLOT: self._handleSetSlot,
-           PACKET_WINDOWOPEN: self._handleWindowOpen,
-           PACKET_WINDOWCLOSE: self._handleWindowClose,
-           PACKET_WINDOWITEMS: self._handleWindowItems,
-           PACKET_TRANSACTION: self._handleTransaction,
+            PACKET_SPAWNPOSITION: self._handleSpawnPosition,
+            PACKET_PLAYERHEALTH: self._handlePlayerHealth,
+            PACKET_PLAYERPOSITION: self._handlePlayerPosition,
+            PACKET_PLAYERPOSITIONLOOK: self._handlePlayerPositionLook,
+
+            PACKET_MOBSPAWN: self._handleMobSpawn,
+            PACKET_NAMEDENTITYSPAWN: self._handleNamedEntitySpawn,
+            PACKET_PICKUPSPAWN: self._handlePickupSpawn,
+            PACKET_ENTITYMOVE: self._handleEntityMove,
+            PACKET_ENTITYMOVELOOK: self._handleEntityMoveLook,
+            PACKET_ENTITYTELEPORT: self._handleEntityTeleport,
+            PACKET_DESTROYENTITY: self._handleDestroyEntity,
+
+            PACKET_PRECHUNK: self._handlePreChunk,
+            PACKET_CHUNK: self._handleChunk,
+            PACKET_BLOCKCHANGE: self._handleBlockChange,
+            PACKET_COMPLEXENTITY: self._handleComplexEntity,
+            PACKET_MULTIBLOCKCHANGE: self._handleMultiBlockChange,
+
+            PACKET_SETSLOT: self._handleSetSlot,
+            PACKET_WINDOWOPEN: self._handleWindowOpen,
+            PACKET_WINDOWCLOSE: self._handleWindowClose,
+            PACKET_WINDOWITEMS: self._handleWindowItems,
+            PACKET_TRANSACTION: self._handleTransaction,
         })
         
         self.entities = {}
+        #redundant entity dicts for convenience 
         self.players = {}
         self.pickups = {}
         self.entityDicts = [self.entities, self.players, self.pickups]
@@ -59,7 +62,7 @@ class BotClient(object):
         
         self.lookTarget = None
         
-        self.mapPlayers = {}
+        #self.mapPlayers = {}
         #self._mapPlayersUpdate()
         
         self.map = Map()
@@ -73,26 +76,26 @@ class BotClient(object):
         self.running = False
         self.commandQueue = []
     
-    def _mapPlayersUpdate(self):
-        import json
-        try:
-            h = urllib.urlopen("http://maps.mcau.org/markers")
-            self.mapPlayers = {}
-            for item in json.loads(h.read()):
-                if item['id'] == 4:
-                    self.mapPlayers[item['msg']] = MapPlayer(item['msg'],
-                        Point(item['x'], item['y'], item['z']))
-        except:
-            pass
-        self.mapPlayersUpdateTimer = threading.Timer(6, self._mapPlayersUpdate)
-        self.mapPlayersUpdateTimer.start()
+    #def _mapPlayersUpdate(self):
+    #    import json
+    #    try:
+    #        h = urllib.urlopen("http://maps.mcau.org/markers")
+    #        self.mapPlayers = {}
+    #        for item in json.loads(h.read()):
+    #            if item['id'] == 4:
+    #                self.mapPlayers[item['msg']] = MapPlayer(item['msg'],
+    #                    Point(item['x'], item['y'], item['z']))
+    #    except:
+    #        pass
+    #    self.mapPlayersUpdateTimer = threading.Timer(6, self._mapPlayersUpdate)
+    #    self.mapPlayersUpdateTimer.start()
         
     def command_followEntity(self, entityId):
         while True:
             try:
                 pos = self.entities[entityId].pos
             except KeyError:
-                print "No entity %d" % entityId
+                logging.error("No entity %d" % entityId)
                 yield False
                 return
             
@@ -115,14 +118,15 @@ class BotClient(object):
             found = True
             #print "finding path"
             try:
+                #TODO: pathfind in a seperate thread so the main loop isn't blocked
                 path, complete = self.map.findPath(self.pos, targetPoint, True, targetThreshold,
                                     destructive=destructive, blockBreakPenalty=None)
                 if path is None:
-                    print "findpath failed"
+                    logging.error("findpath failed")
                     yield False
                     return
             except (AssertionError, TimeoutError):
-                print "findpath failed"
+                logging.error("findpath failed")
                 yield False
                 return
             
@@ -138,11 +142,11 @@ class BotClient(object):
                     found = False
                     break
                 
-                #if 0<i<len(path)-1 and ( \
-                #    (path[i-1].x==point.x==path[i+1].x and path[i-1].y==point.y==path[i+1].y) or \
-                #    (path[i-1].x==point.x==path[i+1].x and path[i-1].z==point.z==path[i+1].z) or \
-                #    (path[i-1].y==point.y==path[i+1].y and path[i-1].z==point.z==path[i+1].z) ):
-                #    continue
+                if (not destructive) and 0<i<len(path)-1 and ( \
+                    (path[i-1].x==point.x==path[i+1].x and path[i-1].y==point.y==path[i+1].y) or \
+                    (path[i-1].x==point.x==path[i+1].x and path[i-1].z==point.z==path[i+1].z) or \
+                    (path[i-1].y==point.y==path[i+1].y and path[i-1].z==point.z==path[i+1].z) ):
+                    continue
                 for v in self.command_moveTowards(point,
                     lookTowardsWalk=lookTowardsWalk,
                     destructive=destructive): yield v
@@ -196,6 +200,8 @@ class BotClient(object):
             else:
                 self.protocol.sendPacked(PACKET_PLAYERPOSITION,
                     self.pos.x, self.pos.y, self.headY, self.pos.z, 1)
+            
+            self.movedThisTick = True
             
             yield True
     
@@ -259,7 +265,7 @@ class BotClient(object):
         item = self.playerInventory.equippedItem
         #item = self.inventories[0].get(self.equippedSlot)
         
-        print "place", position, face, item
+        logging.debug("place %r %r %r" % (position, face, item))
         
         self.protocol.sendPacked(PACKET_PLAYERBLOCKPLACE, position.x, position.y, position.z, face, item)
         
@@ -287,22 +293,31 @@ class BotClient(object):
         while self.running:
             startTime = time.time()
             
-            #self.protocol.sendPacked(PACKET_PLAYERONGROUND, 1)
+            self.movedThisTick = False
             
             if len(self.commandQueue) > 0:
                 try:
                     v = self.commandQueue[0].next()
                     if v == False: #Something broke
                         self.commandQueue.pop(0)
-                except StopIteration:
-                    self.commandQueue.pop(0)
+                except Exception as ex:
+                    if isinstance(ex, StopIteration):
+                        self.commandQueue.pop(0)
+                    else:
+                        logging.error("Command Error: command %r raised %r" % (self.commandQueue[0], ex))
+                        self.commandQueue.pop(0)
+            
+            if not self.movedThisTick:
+                self.lookAt(self.lookTarget or (self.players and (min(self.players.values(),
+                                key=lambda p: (p.pos-self.pos).mag()).pos + (0, 1, 0))) or Point(0, 70, 0))
+                #self.protocol.sendPacked(PACKET_PLAYERONGROUND, 1)
             
             endTime = time.time()
             timeDiff = endTime-startTime
             if timeDiff < self.targetTick:
                 time.sleep(self.targetTick-timeDiff)
             else:
-                print "too slow! O.o"
+                logging.info("too slow! O.o")
     
     
     
@@ -318,7 +333,7 @@ class BotClient(object):
             #    return
             command = commandMatch.group(2)
 
-            print "Command", repr(command)
+            logging.debug("Command - %r" % command)
 
             #Disabled because dropping is broken
             """
@@ -360,28 +375,30 @@ class BotClient(object):
                             self.commandQueue.remove(c)
                     self.commandQueue.append(self.command_followEntity(player.id))
                 else:
-                    print "couldn't find", followName
+                    logging.error("couldn't find %r" % followName)
                     #self.protocol.sendPacked(PACKET_CHAT, "I'm afraid I cannot do that, %s" % name)
-            elif command.startswith("quit following"):
-                print "quit following"
+            elif command.lower().startswith("quit following"):
+                logging.info("quit following")
                 for c in self.commandQueue:
                     if c.__name__ == self.command_followEntity.__name__:
                         self.commandQueue.remove(c)
-            elif command == "come here":
+            elif command.lower() == "come here":
                 player = self.getPlayerByName(name)
                 if player:
                     def walkCommand(pos, name):
                         for v in self.command_walkPathToPoint(pos):
                             if v == False:
-                                print "I'm afraid I cannot do that, %s" % name
+                                logging.error("I'm afraid I cannot do that, %s" % name)
                                 #self.protocol.sendPacked(PACKET_CHAT, "I'm afraid I cannot do that, %s" % name)
                                 return
                             yield v
-                    print "adding", name
+                    logging.info("adding follow %r" % name)
                     self.commandQueue.append(walkCommand(player.pos, name))
-            elif command == "spawn":
+            elif command.lower() == "spawn":
                 self.commandQueue = []
                 self.protocol.sendPacked(PACKET_CHAT, "/spawn")
+            elif command.lower() == "purge inventory":
+                self.commandQueue.append(self.playerInventory.command_purge())
 
 
 
@@ -390,7 +407,7 @@ class BotClient(object):
 
     def _handlePlayerHealth(self, parts):
         hp, = parts
-        print "hp", hp
+        logging.info("hp: %r" % hp)
         self.hp = hp
 
     def _handlePlayerPosition(self, parts):
@@ -485,14 +502,14 @@ class BotClient(object):
 
     def _handleSetSlot(self, parts):
         windowId, slot, item = parts
-        print "Slot", windowId, slot, item
+        logging.debug("Slot %r %r %r" % (windowId, slot, item))
 
         if item is not None:
             item = Item(*item)
         self.inventoryHandler.onSetSlot(windowId, slot, item)
     def _handleWindowOpen(self, parts):
         windowId, windowType, windowTitle, numSlots = parts
-        print "window open", parts
+        logging.debug("window open %r" % parts)
         self.inventoryHandler.onWindowOpen(
             windowId, windowType, windowTitle, numSlots)
     def _handleWindowClose(self, parts):
@@ -500,7 +517,7 @@ class BotClient(object):
         self.inventoryHandler.onWindowClose(windowId)
     def _handleWindowItems(self, parts):
         windowId, items = parts
-        print "Items", windowId, items
+        logging.debug("Items %r %r" % (windowId, items))
 
         for slot, (itemId, count, health) in items.iteritems():
             items[slot] = Item(itemId, count, health)
@@ -510,7 +527,7 @@ class BotClient(object):
         #self.inventories[windowId] = items
     def _handleTransaction(self, parts):
         windowId, actionNumber, accepted = parts
-        print "transaction", windowId, actionNumber, accepted
+        logging.debug("transaction %r %r %r" % (windowId, actionNumber, accepted))
 
         self.inventoryHandler.onTransaction(
             windowId, actionNumber, accepted)

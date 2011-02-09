@@ -5,6 +5,7 @@
 from __future__ import division
 
 import array
+import logging
 from math import floor, ceil
 
 from constants import *
@@ -124,7 +125,7 @@ class GameLogic(object):
         elif dx >= 0 and abs(dx) >= abs(dy) and abs(dx) >= abs(dz):
             face = 5
         else:
-            print "wtf face"
+            logging.error("wtf face")
             face = 1
         return face
     

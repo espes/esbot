@@ -43,7 +43,7 @@ class InventoryHandler(object):
         if windowType == INVENTORYTYPE_WORKBENCH:
             inventory = WorkBenchInventory(self, windowId)
         else:
-            print "fixme %d" % windowType
+            logging.info("fixme %d" % windowType)
             return
         
         self.windows[windowId] = inventory
@@ -71,7 +71,7 @@ class InventoryHandler(object):
             return
         
         self.windows[windowId].items[slot] = item
-        print " -->", self.windows[windowId].items
+        logging.debug(" --> %r" % self.windows[windowId].items)
         
     
 #TODO: Make commands modify the inventory themselves
@@ -109,7 +109,8 @@ class Inventory(object):
         
         transactionId = random.randrange(1, 0x7fff)
 
-        print "click", slot, rightClick, self.windowId, transactionId, self.items.get(slot)
+        logging.debug("click %r %r %r %r %r" % (slot, rightClick,
+            self.windowId, transactionId, self.items.get(slot)))
 
         self.handler.protocol.sendPacked(PACKET_WINDOWCLICK, self.windowId, slot,
             rightClick, transactionId, self.items.get(slot))
@@ -158,7 +159,7 @@ class Inventory(object):
                 if self.inHand is not None and self.inHand.count == 0:
                     self.inHand = None
         else:
-            print "transaction failed"
+            logging.error("transaction failed")
         yield result
     def command_swapSlots(self, src, dst):
         assert self.handler.currentWindowId == self.windowId
@@ -192,14 +193,14 @@ class Inventory(object):
         while targetSlots:
             srcSlot = self.findPlayerItemId(itemId)
             if srcSlot is None:
-                print "insuffient items to fill"
+                logging.error("insuffient items to fill")
                 yield False
                 return
             for v in self.command_click(srcSlot): yield v
             #inHand = self.items[srcSlot]
             #del self.items[srcSlot]
             
-            print "fill item", self.inHand
+            logging.debug("fill item %r" % self.inHand)
             for i in xrange(min(self.inHand.count, len(targetSlots))):
                 slot = targetSlots.pop(0)
                 assert slot not in self.items
@@ -244,7 +245,7 @@ class PlayerInventory(Inventory):
                     self.handler.protocol.sendPacked(PACKET_ITEMSWITCH, 0)
                     self.equippedSlot = self.equippableSlots[0]
                 return
-        print "No item %d" % itemId
+        logging.error("No item %d" % itemId)
         yield False
 
 class WorkBenchInventory(Inventory):

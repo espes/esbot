@@ -73,7 +73,7 @@ class Map(object):
         while q:
             pos = q.popleft()
             if time.time()-startTime > timeout:
-                print (pos-source).mag()
+                logging.debug("last dis: %r" % (pos-source).mag())
                 raise TimeoutError
             for dx, dy, dz in zip(self.adjX, self.adjY, self.adjZ):
                 npos = pos + (dx, dy, dz)
@@ -119,7 +119,6 @@ class Map(object):
         backTrack = {}
         found = None
         
-        #hack
         mapInstance = self
         class AStarNode(Point):
             def __init__(self, *args):
@@ -184,6 +183,19 @@ class Map(object):
                 #Make sure the block below is not a fence
                 try:
                     if self[newNode.x, newNode.y-1, newNode.z] == BLOCK_FENCE:
+                        continue
+                except BlockNotLoadedError:
+                    pass
+                
+                #don't destroy blocks when things will fall on you
+                try:
+                    if destructive and self[newNode.x, newNode.y+2, newNode.z] in (
+                            BLOCK_GRAVEL,
+                            BLOCK_SAND,
+                            BLOCK_WATER,
+                            BLOCK_STATIONARYWATER,
+                            BLOCK_LAVA,
+                            BLOCK_STATIONARYLAVA):
                         continue
                 except BlockNotLoadedError:
                     pass

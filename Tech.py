@@ -16,106 +16,62 @@ class Tech(object):
         pass
     
     #Note: due to lazyness, asume any item's depends won't also be a consume somewhere
-    def calcRequiredCounts(self, getCount=1, curGet=None, curHas=None, invHas=None):
+    def calcRequiredCounts(self, getCount=1, curGet=None,
+                           hasReq=None, invHas=None):
         #print "%r %r" % (self, getCount)
         top = False
-        if curHas is None:
-            curHas = defaultdict(int)
-            top = True
         if curGet is None:
             curGet = defaultdict(int)
+            top = True
+        if hasReq is None:
+            hasReq = defaultdict(int)
         if invHas is None:
             invHas = defaultdict(int)
+        
         for dep, count in self.depends:
             #handle when there are optional depends
             try:
                 ndep = [TECH_MAP.get(d) or d for d in dep]
                 
-                dep = max(ndep, key=lambda d: curHas[d]+invHas[d])
+                dep = max(ndep, key=lambda d: curGet[d]+invHas[d])
             except TypeError: #not iterable
                 if isinstance(dep, int): dep = TECH_MAP[dep]
             
-            if count/dep.produces > curHas[dep]+invHas[dep]:
-                get = max(0, count/dep.produces-(curHas[dep]+invHas[dep]))
-                dep.calcRequiredCounts(get, curGet, curHas, invHas)
-                curHas[dep] += get
-            #for i in xrange(count-curHas[dep]):
-            #    curHas[dep] += 1
-            #    dep.evaluateDeps(curGet, curHas)
+            get = (getCount/abs(getCount))*(count/dep.produces)
+            hasReq[dep] = max(get, hasReq[dep])
+            dep.calcRequiredCounts(get, curGet, hasReq, invHas)
+
         for dep, count in self.consumes:
             get = getCount*count/dep.produces
-            dep.calcRequiredCounts(get, curGet, curHas, invHas)
-            curGet[dep] += get
-            
-            #curGet[dep] += count
-            #for i in xrange(count):
-            #    dep.evaluateDeps(curGet, curHas)
-        #return curHas, curGet
+            dep.calcRequiredCounts(get, curGet, hasReq, invHas) 
+        
+        curGet[self] += getCount
+        
         if top:
-            
-            #remove inventory things for gets
+            #negate inventory item values
             for dep, count in invHas.iteritems():
-                if curGet[dep] > 0:
-                    dep.calcRequiredCounts(-min(invHas[dep], curGet[dep]), curGet, curHas, invHas)
-                    #curGet[dep] -= invHas[dep]
-                    curGet[dep] = max(0, curGet[dep]-invHas[dep])
-            for dep, count in curGet.iteritems():
-                if count <= 0:
-                    curGet[dep] = 0
-                    #del curGet[dep]
+                if count > 0 and curGet[dep] > 0:
+                    dep.calcRequiredCounts(-min(count, curGet[dep]), curGet, hasReq, invHas)
             
-            #print curGet, curHas
+            #fix so dependency items have at most min required
+            for dep, count in hasReq.iteritems():
+                if curGet[dep] > count:
+                    dep.calcRequiredCounts(count-curGet[dep], curGet, hasReq, invHas)
+            
+            for dep, count in curGet.items():
+                if count <= 0:
+                    del curGet[dep]
+            
             #fix so all the gets have been rounded up
             #evaluate them in tolological order so current adjustments won't affect past ones
             order = self.calcGetOrder()
             for dep in order[::-1]:
-                if dep in curHas:
-                    cget = curHas[dep]
-                    get = iceil(cget)-cget
-                    if get != 0:
-                        dep.calcRequiredCounts(get, curGet, curHas, invHas)
-                        curHas[dep] += get
-                elif dep in curGet:
+                if dep in curGet:
                     cget = curGet[dep]
                     get = iceil(cget)-cget
                     if get != 0:
-                        dep.calcRequiredCounts(get, curGet, curHas, invHas)
-                        curGet[dep] += get
-                
-            #print curGet, curHas
-            #probable doesn't work optimally :\
-            #while True:
-            #    #print "has", curHas
-            #    for dep, cget in curHas.iteritems():
-            #        get = iceil(cget)-cget
-            #        if get != 0:
-            #            #print "ping"
-            #            dep.calcRequiredCounts(get, curGet, curHas, invHas)
-            #            curHas[dep] += get
-            #            break
-            #    else:
-            #        break
+                        dep.calcRequiredCounts(get, curGet, hasReq, invHas)
             
-
-            #won't affect curHas (hopefully)
-            #while True:
-            #    #print "get", curGet
-            #    for dep, cget in curGet.iteritems():
-            #        get = iceil(cget)-cget
-            #        if get != 0:
-            #            dep.calcRequiredCounts(get, curGet, curHas, invHas)
-            #            curGet[dep] += get
-            #            break
-            #    else:
-            #        break
-            
-            for dep, count in curHas.iteritems():
-                curGet[dep] += count
-            #for dep, count in invHas.iteritems():
-            #    if dep not in curHas and curGet[dep] > 0:
-            #        curGet[dep] = max(0, curGet[dep]-invHas[dep])
-            
-            curGet[self] += getCount
             for dep, count in curGet.items():
                 if count <= 0:
                     del curGet[dep]
@@ -151,19 +107,25 @@ class Tech(object):
             tech = TECH_MAP.get(item.itemId)
             if tech is None: continue
             invHas[tech] += item.count/tech.produces
-        print invHas
+        logging.debug("invHas: %r" % invHas)
+        
         getCounts = self.calcRequiredCounts(getCount, invHas=invHas)
+        logging.debug("getCounts: %r" % invHas)
+        
         order = self.calcGetOrder(validItems=set(getCounts.iterkeys()))
+        logging.debug("order: %r" % invHas)
+        
         return [(tech, getCounts[tech]) for tech in order]
     def command_getOrderly(self, client, getCount=1):
         orderGet = self.calcGetWithInventory(client.playerInventory, getCount)
-        print orderGet
+        logging.debug("orderGet: %r" % orderGet)
+        
         for tech, evalCount in orderGet:
-            print "evl %r %r" % (tech, evalCount) 
+            logging.debug("evl %r %r" % (tech, evalCount))
             for v in tech.command_get(client, evalCount):
                 yield v
     def command_get(self, client, getCount=1):
-        print "getting %r %r" % (self, getCount)
+        logging.info("getting %r %r" % (self, getCount))
         
         if False: #make it a generator
             yield True
@@ -211,17 +173,6 @@ class TechMineItem(TechItem):
         if mineTool is None:
             TechItem.__init__(self, [], [], itemId)
         else:
-            try:
-                iter(mineTool)
-            except TypeError:
-                mineTool = [mineTool]
-            
-            #mineOptions = []
-            #for v in mineTool:
-            #    if isinstance(v, int):
-            #        v = TECH_MAP[v]
-            #    mineOptions.append(v)
-            #if isinstance(mineTool, int): mineTool = TECH_MAP[mineTool]
             TechItem.__init__(self, [(mineTool, 1)], [], itemId)
             
         
@@ -229,7 +180,7 @@ class TechMineItem(TechItem):
         self.mineItemId = mineItem or self.itemId
     def command_get(self, client, getCount=1):
         
-        print "mineping"
+        logging.debug("mineping")
         if self.mineTool is not None:
             #equipt the tool of choice (by now should have it in inventory)
             for tool in self.mineTool:
@@ -254,7 +205,7 @@ class TechMineItem(TechItem):
                 break
             
             try:
-                print "finding block %r" % self.mineItemId
+                logging.info("finding block %r" % self.mineItemId)
                 
                 #done = [False]
                 #result = [None]
@@ -264,13 +215,13 @@ class TechMineItem(TechItem):
                 
                 blockPos = client.map.searchForBlock(client.pos, self.mineItemId, timeout=60)
             except TimeoutError:
-                print "timeout! block too far away!"
+                logging.error("timeout! block too far away!")
                 yield False
                 return
             #TODO: Look for items on the ground
         
             if not blockPos:
-                print "block not found"
+                logging.error("block not found")
                 yield False
                 return
 
@@ -294,7 +245,7 @@ def buildSlotsFromRecipe(recipe):
         if isinstance(item, TechItem):
             item = tech.itemId
         elif not isinstance(item, int):
-            print "recipe must be items"
+            logging.error("recipe must be items")
         
         slots[item].append(i+1)
     return slots
@@ -312,20 +263,20 @@ class TechAssembleItem(TechItem):
             yield v
         
         for i in xrange(iceil(getCount)):
-            print "assembly get"
-            print "place items"
+            logging.debug("assembly get")
+            logging.debug("place items")
             craftSlots = buildSlotsFromRecipe(self.recipe)
             for itemId, slots in craftSlots.iteritems():
-                print itemId, slots
+                logging.debug("fill %r %r" % (itemId, slots))
                 for v in client.playerInventory.command_fillSlotsWithPlayerItem(itemId, slots):
                     yield v
         
             client.playerInventory.items[0] = copy.copy(self.produced)
         
-            print "retrieve"
+            logging.debug("retrieve")
             emptySlot = client.playerInventory.findPlayerEmptySlot()
             if emptySlot is None:
-                print "no empty slot to store item"
+                logging.error("no empty slot to store item")
                 yield False
                 return
             for v in client.playerInventory.command_swapSlots(0, emptySlot):
@@ -357,30 +308,30 @@ class TechCraftItem(TechItem):
         for v in client.command_walkPathToPoint(client.pos + (0, 1, 0), destructive=True):
             yield v
         
-        #equip crafting table
+        logging.debug("equip crafting table")
         for v in client.playerInventory.command_equipItem(BLOCK_CRAFTINGTABLE):
             yield v
         
-        #place crafting table
+        logging.debug("place crafting table")
         if not client.placeBlock(placePos + (0, -1, 0)): 
-            print "failed placing crafting table"
+            logging.error("failed placing crafting table")
             yield False
             return
         yield True
         
         if not client.map[placePos] == BLOCK_CRAFTINGTABLE:
-            print "failed placing crafting table"
+            logging.error("failed placing crafting table")
             yield False
             return
 
         #hit it
         if not client.placeBlock(placePos):
-            print "failed hitting crafing table"
+            logging.error("failed hitting crafing table")
             yield False
             return
         yield True
         
-        print "wait for open"
+        logging.debug("wait for crafting window open")
         #Wait for window to come up
         while not isinstance(client.inventoryHandler.currentWindow, WorkBenchInventory):
             yield True
@@ -388,33 +339,23 @@ class TechCraftItem(TechItem):
         craftingWindow = client.inventoryHandler.currentWindow
         
         for i in xrange(iceil(getCount)):
-            print "place items"
+            logging.debug("place items")
             craftSlots = buildSlotsFromRecipe(self.recipe)
             for itemId, slots in craftSlots.iteritems():
-                print itemId, slots
+                logging.debug("fill %r %r" % (itemId, slots))
                 for v in craftingWindow.command_fillSlotsWithPlayerItem(itemId, slots):
                     yield v
         
-            #for i, itemId in enumerate(self.recipe):
-            #    if itemId is None: continue
-            #    
-            #    srcSlot = craftingWindow.findPlayerItemId(itemId)
-            #    if srcSlot is None:
-            #        print "required crafting item %d not in inventory" % itemId
-            #        yield False
-            #        return
-            #    for v in craftingWindow.command_swapSlots(srcSlot, i+1):
-            #        yield v
             yield True
         
             #TODO: Handle recipes better
             craftingWindow.items[0] = copy.copy(self.produced)
         
-            print "retrieve"
+            logging.debug("retrieve")
         
             emptySlot = craftingWindow.findPlayerEmptySlot()
             if emptySlot is None:
-                print "no empty slot to store item"
+                logging.error("no empty slot to store item")
                 yield False
                 return
             for v in craftingWindow.command_swapSlots(0, emptySlot):
@@ -426,7 +367,6 @@ class TechCraftItem(TechItem):
                     del craftingWindow.items[i]
             
         
-        # NO - #no need to other items because they'll pop out when closing window
         client.inventoryHandler.closeWindow(craftingWindow)
         
         #walk back down destroying the crafting table
