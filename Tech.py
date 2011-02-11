@@ -204,7 +204,8 @@ class TechMineItem(TechItem):
                     yield v
                 else:
                     break
-            else: #nothing was successfully equipped
+            else:
+                logging.error("couldn't equipt required tool")
                 yield False
                 return
         
@@ -230,7 +231,7 @@ class TechMineItem(TechItem):
             blockPos = deferred.result
 
             for v in client.command_walkPathToPoint(blockPos,
-                destructive=True, blockBreakPenalty=5):
+                destructive=True, blockBreakPenalty=10):
                 yield v
 
 def buildConsumesFromRecipe(recipe):
@@ -278,12 +279,7 @@ class TechAssembleItem(TechItem):
             client.playerInventory.items[0] = copy.copy(self.produced)
         
             logging.debug("retrieve")
-            emptySlot = client.playerInventory.findPlayerEmptySlot()
-            if emptySlot is None:
-                logging.error("no empty slot to store item")
-                yield False
-                return
-            for v in client.playerInventory.command_swapSlots(0, emptySlot):
+            for v in client.playerInventory.command_moveToPlayerInventory(0):
                 yield v
             
             #Destory recipe
@@ -356,13 +352,8 @@ class TechCraftItem(TechItem):
             craftingWindow.items[0] = copy.copy(self.produced)
         
             logging.debug("retrieve")
-        
-            emptySlot = craftingWindow.findPlayerEmptySlot()
-            if emptySlot is None:
-                logging.error("no empty slot to store item")
-                yield False
-                return
-            for v in craftingWindow.command_swapSlots(0, emptySlot):
+            
+            for v in craftingWindow.command_moveToPlayerInventory(0):
                 yield v
             
             #Destroy recipe

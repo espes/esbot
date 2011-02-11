@@ -20,6 +20,7 @@ from twisted.conch.insults.insults import TerminalProtocol, privateModes, _KEY_N
 from twisted.conch.insults.helper import TerminalBuffer
 from twisted.conch.insults.window import Widget, TopWindow, TextOutput, VBox, YieldFocus, horizontalLine, cursor
 
+
 class FixedTerminalBuffer(TerminalBuffer):
     lastWrite = ''
     def write(self, bytes):
@@ -29,28 +30,33 @@ class FixedTerminalBuffer(TerminalBuffer):
 for name, const in zip(_KEY_NAMES, FUNCTION_KEYS):
     setattr(FixedTerminalBuffer, name, const)
 
+#a list that calls a callback when it's modified
+class AnnouncingList(list):
+    def __init__(self, callback, *args, **kargs):
+        list.__init__(self, *args, **kargs)
+        self.callback = callback
+    for m in ['__delattr__', '__delitem__', '__delslice__', 
+              '__setattr__', '__setitem__', '__setslice__',
+              '__iadd__', '__imul__',
+              'append', 'extend', 'insert', 'pop', 'remove', 
+              'reverse', 'sort']:
+        exec """\
+def %s(self, *args, **kargs):
+    r = list.%s(self, *args, **kargs)
+    self.callback()
+    return r
+""" % (m, m)
 
-"""
-class AnnouncingTerminalBuffer(TerminalBuffer):
+class AnnouncingTerminalBuffer(FixedTerminalBuffer):
     def __init__(self, modifyCallback):
         self.modifyCallback = modifyCallback
-    def insertAtCursor(self, b):
-        TerminalBuffer.insertAtCursor(self, b)
-        self.modifyCallback()
-    def _scrollDown(self):
-        TerminalBuffer._scrollDown(self)
-        self.modifyCallback()
-    def _scrollUp(self):
-        TerminalBuffer._scrollUp(self)
-        self.modifyCallback()
-    def cursorUp(self, n=1):
-        TerminalBuffer.cursorUp(self, n)
-        self.modifyCallback()
+    def _emptyLine(self, width):
+        res = FixedTerminalBuffer._emptyLine(self, width)
+        return AnnouncingList(self.modifyCallback, res)
+    def eraseDisplay(self):
+        FixedTerminalBuffer.eraseDisplay(self)
+        self.lines = AnnouncingList(self.modifyCallback, self.lines)
 
-#make key ids the same as ServerProtocol
-for name, const in zip(_KEY_NAMES, FUNCTION_KEYS):
-    setattr(AnnouncingTerminalBuffer, name, const)
-"""
 
 class TerminalProtocolWidget(Widget):
     width = 80
@@ -60,7 +66,7 @@ class TerminalProtocolWidget(Widget):
         Widget.__init__(self)
         self.tp = tp
         
-        self._buf = FixedTerminalBuffer()
+        self._buf = AnnouncingTerminalBuffer(self.repaint)
         
         self._buf.width = self.width
         self._buf.height = self.height
@@ -79,7 +85,7 @@ class TerminalProtocolWidget(Widget):
     def resizeTerminal(self, width, height):
         self._buf.width = width
         self._buf.height = height
-        self._buf.reset()
+        self._buf.eraseDisplay()
         
         self.tp.terminalSize(width, height)
         self.repaint()
@@ -98,7 +104,7 @@ class TerminalProtocolWidget(Widget):
             if n < width:
                 terminal.write(' ' * (width - n - 1))
 
-#from invective (http://twistedmatrix.com/trac/browser/sandbox/exarkun/invective)
+#adapted from invective (http://twistedmatrix.com/trac/browser/sandbox/exarkun/invective)
 class OutputWidget(TextOutput):
     def __init__(self, size=None):
         TextOutput.__init__(self, size)
@@ -119,7 +125,7 @@ class OutputWidget(TextOutput):
                 break
         if len(output) < height:
             output[:0] = [''] * (height - len(output))
-        for n, L in enumerate(output):
+        for n, L in enumerate(output[-height:]):
             terminal.cursorPosition(0, n)
             terminal.write(L + ' ' * (width - len(L)))
 
@@ -151,16 +157,11 @@ class BotInterface(TerminalProtocol):
     width = 80
     height = 24
     
-    #TODO: refreshing unneeded if TerminalBuffer callback set up
-    refreshRate = 0.05
-    
     def __init__(self, manholeNamespace = None):
         self.manholeNamespace = manholeNamespace
     
     def _draw(self):
         self.window.draw(self.width, self.height, self.terminal)
-        #TODO: don't always be dirty
-        self.window.filthy()
     def _schedule(self, f):
         reactor.callLater(0, f)
     
@@ -190,16 +191,6 @@ class BotInterface(TerminalProtocol):
         vbox.addChild(self.manholeView)
         
         self.window.addChild(vbox)
-        
-        #render regularly
-        c = task.LoopingCall(self._draw)
-        c.start(self.refreshRate)
-        
-        #if self.botFactory:
-        #    #start the client
-        #    #really hacky
-        #    self.botFactory.setInterfaceNamespace(self.manhole.interpreter.locals)
-        #    reactor.connectTCP(self.server, self.port, self.botFactory)
     
     def keystrokeReceived(self, keyID, modifier):
         self.window.keystrokeReceived(keyID, modifier)
@@ -249,15 +240,3 @@ def runReactorWithTerminal(terminalProtocol, *args):
     finally:
         termios.tcsetattr(fd, termios.TCSANOW, oldSettings)
         os.write(fd, "\r\x1bc\r")
-
-if __name__ == "__main__":
-    logging.basicConfig(filename="out.log",level=logging.DEBUG)
-    logging.debug("start")
-    
-    
-    #capture twisted logs (useful for seeing exceptions)
-    #observer = log.PythonLoggingObserver()
-    #observer.start()
-    #log.startLogging(open('out2.log', 'w'))
-    
-    runReactorWithTerminal(CommandLineBotInterface)

@@ -296,6 +296,16 @@ class BotClient(object):
                 return player
         return None
     
+    def queueCommand(self, command):
+        self.commandQueue.append(command)
+    def cancelCommand(self):
+        if len(self.commandQueue) > 0:
+            self.commandQueue.pop(0)
+    def currentCommand(self):
+        if len(self.commandQueue) > 0:
+            return self.commandQueue[0]
+        return None
+    
     def stop(self):
         self.runTask.stop()
     def start(self):
@@ -314,25 +324,13 @@ class BotClient(object):
                     self.commandQueue.pop(0)
                 else:
                     logging.error("Exception in command %r:" % self.commandQueue[0])
-                    logging.error(ex)
+                    logging.exception(ex)
                     self.commandQueue.pop(0)
         
         if not self.movedThisTick:
             self.lookAt(self.lookTarget or (self.players and (min(self.players.values(),
                             key=lambda p: (p.pos-self.pos).mag()).pos + (0, PLAYER_HEIGHT, 0))) or Point(0, 70, 0))
             self.protocol.sendPacked(PACKET_PLAYERONGROUND, 1)
-    
-    #def run(self):
-    #    self.running = True
-    #    while self.running:
-    #        startTime = time.time()
-    #        self.tick()
-    #        endTime = time.time()
-    #        timeDiff = endTime-startTime
-    #        if timeDiff < self.targetTick:
-    #            time.sleep(self.targetTick-timeDiff)
-    #        else:
-    #            logging.warning("too slow! O.o")
     
     
     

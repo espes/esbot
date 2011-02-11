@@ -128,12 +128,13 @@ class Inventory(object):
                 #update inventory
                 if self.inHand is not None and slot in self.items:
                     if self.inHand.itemId == self.items[slot].itemId:
-                        placeAmount = max(64-self.items[slot].count, 0)
+                        maxStack = gamelogic.maxStack(self.inHand.itemId)
+                        placeAmount = max(maxStack-self.items[slot].count, 0)
                         if rightClick:
                             placeAmount = min(placeAmount, 1)
-                        placeAmount = min(placeAmount, inHand.count)
+                        placeAmount = min(placeAmount, self.inHand.count)
                         self.inHand.count -= placeAmount
-                        self.items[slot] += placeAmount
+                        self.items[slot].count += placeAmount
                     else:
                         #swap them
                         self.inHand, self.items[slot] = self.items[slot], self.inHand
@@ -168,26 +169,6 @@ class Inventory(object):
         for v in self.command_click(dst): yield v
         if self.inHand is not None:
             for v in self.command_click(src): yield v
-        
-        """
-        inHand = None
-        if src in self.items:
-            for v in self.command_click(src): yield v
-            inHand = self.items[src]
-            del self.items[src]
-        for v in self.command_click(dst): yield v
-        if dst in self.items:
-            if inHand is None:
-                inHand = self.items[dst]
-                del self.items[dst]
-            else:
-                inHand, self.items[dst] = self.items[dst], inHand
-
-            for v in self.command_click(src): yield v
-            self.items[src] = inHand
-        elif inHand is not None:
-            self.items[dst] = inHand
-        """
     def command_fillSlotsWithPlayerItem(self, itemId, targetSlots):
         #print bool(targetSlots)
         while targetSlots:
@@ -197,8 +178,6 @@ class Inventory(object):
                 yield False
                 return
             for v in self.command_click(srcSlot): yield v
-            #inHand = self.items[srcSlot]
-            #del self.items[srcSlot]
             
             logging.debug("fill item %r" % self.inHand)
             for i in xrange(min(self.inHand.count, len(targetSlots))):
@@ -206,19 +185,35 @@ class Inventory(object):
                 assert slot not in self.items
                 
                 for v in self.command_click(slot, True): yield v
-                #inHand.count -= 1
-                
-                #self.items[slot] = Item(inHand.itemId, 1, 0)
             
-            if self.inHand is not None and self.inHand.count > 0:
+            if self.inHand is not None:
                 #put it back
                 for v in self.command_click(srcSlot): yield v
-                #self.items[srcSlot] = inHand
+
     def command_purge(self):
         for slot, item in self.items.items():
             for v in self.command_click(slot): yield v
             for v in self.command_click(-999): yield v
+    def command_moveToPlayerInventory(self, sourceSlot):
+        for v in self.command_click(sourceSlot): yield v
+        
+        while self.inHand is not None:
             
+            for slot, item in self.items.items():
+                if slot not in self.playerItemsRange:
+                    continue
+                if self.inHand.itemId == item.itemId:
+                    for v in self.command_click(slot): yield v
+                    break
+            else:
+                emptySlot = self.findPlayerEmptySlot()
+                if emptySlot is None:
+                    logging.error("no empty slot for item")
+                    yield False
+                    return
+                for v in self.command_click(emptySlot): yield v
+                assert self.inHand is None
+        
     def onTransaction(self, actionNumber, accepted):
         self.transactionResult[actionNumber] = accepted
 

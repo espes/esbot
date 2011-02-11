@@ -3,7 +3,6 @@
 # - espes
 
 from __future__ import division
-import thread
 from twisted.internet import reactor, protocol
 
 from packets import *
@@ -22,10 +21,7 @@ class BotProtocol(MCBaseClientProtocol):
     def _handleLogin(self, parts):
         MCBaseClientProtocol._handleLogin(self, parts)
         
-        #Start main client "tick" loop
         self.client.start()
-        #reactor.callInThread(self.client.run)
-        #reactor.addSystemEventTrigger('before', 'shutdown', self.client.stop)
 
 class BotFactory(protocol.ClientFactory):#ReconnectingClientFactory
     protocol = BotProtocol

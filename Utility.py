@@ -187,5 +187,12 @@ class GameLogic(object):
         
         
         return int(1/damagePerHit + 2) #Add 2 to be safe
+    
+    def maxStack(self, itemId):
+        if itemId in ITEMS_UNSTACKABLE:
+            return 1
+        if itemId in ITEMS_SPECIALSTACKS:
+            return ITEMS_SPECIALSTACKS[itemId]
+        return 64
 
 gamelogic = GameLogic()
