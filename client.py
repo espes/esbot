@@ -25,10 +25,12 @@ def main():
     from getpass import getpass
     
     loginname = argv[1]
+    server = argv[2]
+    port = int(argv[3])
     
     botname = None
-    if len(argv) >= 3:
-        botname = argv[2]
+    if len(argv) >= 5:
+        botname = argv[4]
     
     password = getpass()
     
@@ -46,7 +48,7 @@ def main():
     interfaceNamespace = {}
     
     f = BotFactory(username, sessionId, botname, interfaceNamespace)
-    reactor.connectTCP("127.0.0.1", 25565, f)
+    reactor.connectTCP(server, port, f)
     
     #start with a null oberserver to remove DefaultObserver
     #because we can't stderr in a terminal
