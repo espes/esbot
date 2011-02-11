@@ -73,7 +73,6 @@ class TerminalProtocolWidget(Widget):
         Widget.draw(self, width, height, terminal)
     
     def resizeTerminal(self, width, height):
-        logging.debug("resize")
         self._buf.width = width
         self._buf.height = height
         self._buf.reset()
@@ -172,7 +171,10 @@ class BotInterface(TerminalProtocol):
         self.logWidget = OutputWidget()
         vbox.addChild(self.logWidget)
         
-        logging.getLogger().addHandler(logging.StreamHandler(OutputLogStream(self.logWidget)))
+        logHandler = logging.StreamHandler(OutputLogStream(self.logWidget))
+        #make it use the default formatter
+        logHandler.setFormatter(logging.Formatter(logging.BASIC_FORMAT))
+        logging.getLogger().addHandler(logHandler)
         
         vbox.addChild(SeperatorWidget())
         
@@ -199,7 +201,6 @@ class BotInterface(TerminalProtocol):
         self.window.keystrokeReceived(keyID, modifier)
     
     def terminalSize(self, width, height):
-        logging.info("terminal size change")
         self.width = width
         self.height = height
         self._draw()

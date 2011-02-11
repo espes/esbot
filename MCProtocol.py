@@ -90,7 +90,13 @@ class MCBaseClientProtocol(protocol.Protocol):
             'serverId': serverId
         })
         f = urllib.urlopen("http://www.minecraft.net/game/joinserver.jsp?%s" % params)
-        logging.debug(repr(f.read()))
+        ret = f.read()
+        if ret == "Bad login":
+            logging.error(ret)
+            self.transport.loseConnection()
+            return False
+            
+        logging.debug(repr(ret))
         
         logging.info("Done")
 

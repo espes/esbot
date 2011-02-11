@@ -23,8 +23,9 @@ class BotProtocol(MCBaseClientProtocol):
         MCBaseClientProtocol._handleLogin(self, parts)
         
         #Start main client "tick" loop
-        reactor.callInThread(self.client.run)
-        reactor.addSystemEventTrigger('before', 'shutdown', self.client.stop)
+        self.client.start()
+        #reactor.callInThread(self.client.run)
+        #reactor.addSystemEventTrigger('before', 'shutdown', self.client.stop)
 
 class BotFactory(protocol.ClientFactory):#ReconnectingClientFactory
     protocol = BotProtocol

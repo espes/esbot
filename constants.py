@@ -2,6 +2,7 @@
 #GPL and all that
 # - espes
 
+PLAYER_HEIGHT = 1.62
 
 BLOCKS = set()
 BLOCKS_NAMES = {}

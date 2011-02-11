@@ -9,7 +9,7 @@ import time
 import math
 import urllib
 
-from twisted.internet import threads
+from twisted.internet import task, threads
 from twisted.python import failure
 
 from packets import *
@@ -76,7 +76,8 @@ class BotClient(object):
         self.speed = 6#block/s
         self.targetTick = 0.2
         
-        self.running = False
+        self.runTask = None
+        #self.running = False
         self.commandQueue = []
     
     #def _mapPlayersUpdate(self):
@@ -196,7 +197,7 @@ class BotClient(object):
                     
             
             self.pos = target
-            self.headY = self.pos.y+1.62
+            self.headY = self.pos.y+PLAYER_HEIGHT
             
             lookTarget = self.lookTarget or (lookTowardsWalk and position)
             if lookTarget:
@@ -296,38 +297,42 @@ class BotClient(object):
         return None
     
     def stop(self):
-        self.running = False
-    def run(self):
-        self.running = True
-        while self.running:
-            startTime = time.time()
-            
-            self.movedThisTick = False
-            
-            if len(self.commandQueue) > 0:
-                try:
-                    v = self.commandQueue[0].next()
-                    if v == False: #Something broke
-                        self.commandQueue.pop(0)
-                except Exception as ex:
-                    if isinstance(ex, StopIteration):
-                        self.commandQueue.pop(0)
-                    else:
-                        logging.error("Exception in command %r:" % self.commandQueue[0])
-                        logging.error(ex)
-                        self.commandQueue.pop(0)
-            
-            if not self.movedThisTick:
-                self.lookAt(self.lookTarget or (self.players and (min(self.players.values(),
-                                key=lambda p: (p.pos-self.pos).mag()).pos + (0, 1, 0))) or Point(0, 70, 0))
-                #self.protocol.sendPacked(PACKET_PLAYERONGROUND, 1)
-            
-            endTime = time.time()
-            timeDiff = endTime-startTime
-            if timeDiff < self.targetTick:
-                time.sleep(self.targetTick-timeDiff)
-            else:
-                logging.warning("too slow! O.o")
+        self.runTask.stop()
+    def start(self):
+        self.runTask = task.LoopingCall(self.tick)
+        self.runTask.start(self.targetTick)
+    def tick(self):
+        self.movedThisTick = False
+        
+        if len(self.commandQueue) > 0:
+            try:
+                v = self.commandQueue[0].next()
+                if v == False: #Something broke
+                    self.commandQueue.pop(0)
+            except Exception as ex:
+                if isinstance(ex, StopIteration):
+                    self.commandQueue.pop(0)
+                else:
+                    logging.error("Exception in command %r:" % self.commandQueue[0])
+                    logging.error(ex)
+                    self.commandQueue.pop(0)
+        
+        if not self.movedThisTick:
+            self.lookAt(self.lookTarget or (self.players and (min(self.players.values(),
+                            key=lambda p: (p.pos-self.pos).mag()).pos + (0, PLAYER_HEIGHT, 0))) or Point(0, 70, 0))
+            self.protocol.sendPacked(PACKET_PLAYERONGROUND, 1)
+    
+    #def run(self):
+    #    self.running = True
+    #    while self.running:
+    #        startTime = time.time()
+    #        self.tick()
+    #        endTime = time.time()
+    #        timeDiff = endTime-startTime
+    #        if timeDiff < self.targetTick:
+    #            time.sleep(self.targetTick-timeDiff)
+    #        else:
+    #            logging.warning("too slow! O.o")
     
     
     
@@ -345,7 +350,7 @@ class BotClient(object):
 
             logging.debug("Command - %r" % command)
 
-            #Disabled because dropping is broken
+            #can't just spawn items anymore D:
             """
             matchBacon = re.match(r"gimm?eh? (fried )?bacon", command)
             if matchBacon:
