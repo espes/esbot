@@ -65,9 +65,6 @@ class BotClient(object):
         
         self.lookTarget = None
         
-        #self.mapPlayers = {}
-        #self._mapPlayersUpdate()
-        
         self.map = Map()
         
         self.inventoryHandler = InventoryHandler(self.protocol)
@@ -79,20 +76,6 @@ class BotClient(object):
         self.runTask = None
         #self.running = False
         self.commandQueue = []
-    
-    #def _mapPlayersUpdate(self):
-    #    import json
-    #    try:
-    #        h = urllib.urlopen("http://maps.mcau.org/markers")
-    #        self.mapPlayers = {}
-    #        for item in json.loads(h.read()):
-    #            if item['id'] == 4:
-    #                self.mapPlayers[item['msg']] = MapPlayer(item['msg'],
-    #                    Point(item['x'], item['y'], item['z']))
-    #    except:
-    #        pass
-    #    self.mapPlayersUpdateTimer = threading.Timer(6, self._mapPlayersUpdate)
-    #    self.mapPlayersUpdateTimer.start()
         
     def command_followEntity(self, entityId):
         while True:
@@ -232,8 +215,6 @@ class BotClient(object):
         
         block = self.map[position]
         
-        #print "prebreak", position, block
-        
         if block in BLOCKS_UNBREAKABLE: return
         if (not destroyWalkable) and block in BLOCKS_WALKABLE: return
         
@@ -251,7 +232,7 @@ class BotClient(object):
         self.protocol.sendPacked(PACKET_PLAYERBLOCKDIG, 3, position.x, position.y, position.z, face)
         self.protocol.sendPacked(PACKET_PLAYERBLOCKDIG, 2, position.x, position.y, position.z, face)
         
-        self.map[tuple(position)] = BLOCK_AIR
+        self.map[position] = BLOCK_AIR
         
     def placeBlock(self, againstBlock):
         position = Point(*map(ifloor, againstBlock))
@@ -273,7 +254,6 @@ class BotClient(object):
             self.inventoryHandler.closeWindow()
         
         item = self.playerInventory.equippedItem
-        #item = self.inventories[0].get(self.equippedSlot)
         
         logging.debug("place %r %r %r" % (position, face, item))
         

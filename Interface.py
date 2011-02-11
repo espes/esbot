@@ -25,38 +25,29 @@ class FixedTerminalBuffer(TerminalBuffer):
     lastWrite = ''
     def write(self, bytes):
         TerminalBuffer.write(self, bytes)
-        lastWrite = bytes
+        self.lastWrite = bytes
 #make key ids the same as ServerProtocol
 for name, const in zip(_KEY_NAMES, FUNCTION_KEYS):
     setattr(FixedTerminalBuffer, name, const)
 
-#a list that calls a callback when it's modified
-class AnnouncingList(list):
-    def __init__(self, callback, *args, **kargs):
-        list.__init__(self, *args, **kargs)
-        self.callback = callback
-    for m in ['__delattr__', '__delitem__', '__delslice__', 
-              '__setattr__', '__setitem__', '__setslice__',
-              '__iadd__', '__imul__',
-              'append', 'extend', 'insert', 'pop', 'remove', 
-              'reverse', 'sort']:
-        exec """\
-def %s(self, *args, **kargs):
-    r = list.%s(self, *args, **kargs)
-    self.callback()
-    return r
-""" % (m, m)
-
 class AnnouncingTerminalBuffer(FixedTerminalBuffer):
     def __init__(self, modifyCallback):
         self.modifyCallback = modifyCallback
-    def _emptyLine(self, width):
-        res = FixedTerminalBuffer._emptyLine(self, width)
-        return AnnouncingList(self.modifyCallback, res)
-    def eraseDisplay(self):
-        FixedTerminalBuffer.eraseDisplay(self)
-        self.lines = AnnouncingList(self.modifyCallback, self.lines)
-
+    
+    for m in ['insertAtCursor', '_scrollDown', '_scrollUp', 
+              'eraseToLineEnd', 'eraseToLineBeginning',
+              'eraseDisplay', 'eraseToDisplayEnd',
+              'eraseToDisplayBeginning', 'deleteCharacter',
+              'insertLine', 'deleteLine', 
+              'cursorUp', 'cursorDown', 'cursorBackward', 
+              'cursorForward', 'cursorPosition', 'cursorHome',
+              'restoreCursor']:
+        exec """\
+def %s(self, *args, **kargs):
+    r = FixedTerminalBuffer.%s(self, *args, **kargs)
+    self.modifyCallback()
+    return r
+""" % (m, m)
 
 class TerminalProtocolWidget(Widget):
     width = 80
@@ -240,3 +231,6 @@ def runReactorWithTerminal(terminalProtocol, *args):
     finally:
         termios.tcsetattr(fd, termios.TCSANOW, oldSettings)
         os.write(fd, "\r\x1bc\r")
+
+if __name__ == "__main__":
+    

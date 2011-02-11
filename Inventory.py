@@ -5,7 +5,7 @@
 from __future__ import division
 
 import random
-
+import logging
 from collections import defaultdict
 
 from Utility import *
@@ -64,7 +64,10 @@ class InventoryHandler(object):
     def onWindowItems(self, windowId, items):
         self.windows[windowId].items = items
     def onSetSlot(self, windowId, slot, item):
-        if windowId < 0: return
+        if windowId == -1 and slot == -1:
+            self.currentWindow.inHand = item
+            return
+        
         if item is None:
             if slot in self.windows[windowId].items:
                 del self.windows[windowId].items[slot]
