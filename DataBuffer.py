@@ -1,3 +1,6 @@
+#MineBot
+#GPL and all that
+# - espes
 
 from StringIO import StringIO
 

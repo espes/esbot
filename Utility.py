@@ -1,4 +1,4 @@
-#MineBot - random helper classes
+#MineBot
 #GPL and all that
 # - espes
 

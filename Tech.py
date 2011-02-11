@@ -1,3 +1,7 @@
+#MineBot
+#GPL and all that
+# - espes
+
 from __future__ import division
 
 import copy

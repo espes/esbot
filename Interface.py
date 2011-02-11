@@ -1,3 +1,7 @@
+#MineBot
+#GPL and all that
+# - espes
+
 import io
 import logging
 from textwrap import wrap

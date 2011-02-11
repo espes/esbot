@@ -1,3 +1,7 @@
+#MineBot
+#GPL and all that
+# - espes
+
 import heapq
 from collections import deque
 import time

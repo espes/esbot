@@ -1,3 +1,4 @@
+#MineBot
 #GPL and all that
 # - espes
 
