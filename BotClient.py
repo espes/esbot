@@ -9,6 +9,9 @@ import time
 import math
 import urllib
 
+from twisted.internet import threads
+from twisted.python import failure
+
 from packets import *
 
 from Utility import *
@@ -117,15 +120,21 @@ class BotClient(object):
         while True:
             found = True
             #print "finding path"
-            try:
-                #TODO: pathfind in a seperate thread so the main loop isn't blocked
-                path, complete = self.map.findPath(self.pos, targetPoint, True, targetThreshold,
-                                    destructive=destructive, blockBreakPenalty=None)
-                if path is None:
-                    logging.error("findpath failed")
-                    yield False
-                    return
-            except (AssertionError, TimeoutError):
+            
+            deferred = threads.deferToThread(self.map.findPath,
+                            self.pos, targetPoint, True, targetThreshold,
+                            destructive=destructive, blockBreakPenalty=None)
+            #hack
+            while not hasattr(deferred, 'result'):
+                yield True
+            
+            if isinstance(deferred.result, failure.Failure):
+                logging.error("findpath failed")
+                yield False
+                return
+            
+            path, complete = deferred.result
+            if path is None:
                 logging.error("findpath failed")
                 yield False
                 return
@@ -304,7 +313,8 @@ class BotClient(object):
                     if isinstance(ex, StopIteration):
                         self.commandQueue.pop(0)
                     else:
-                        logging.error("Command Error: command %r raised %r" % (self.commandQueue[0], ex))
+                        logging.error("Exception in command %r:" % self.commandQueue[0])
+                        logging.error(ex)
                         self.commandQueue.pop(0)
             
             if not self.movedThisTick:
@@ -317,7 +327,7 @@ class BotClient(object):
             if timeDiff < self.targetTick:
                 time.sleep(self.targetTick-timeDiff)
             else:
-                logging.info("too slow! O.o")
+                logging.warning("too slow! O.o")
     
     
     

@@ -3,6 +3,9 @@ from __future__ import division
 import copy
 from collections import defaultdict
 
+from twisted.internet import threads
+from twisted.python import failure
+
 from Utility import *
 from Inventory import *
 
@@ -30,6 +33,7 @@ class Tech(object):
         
         for dep, count in self.depends:
             #handle when there are optional depends
+            # - This is broken
             try:
                 ndep = [TECH_MAP.get(d) or d for d in dep]
                 
@@ -50,7 +54,7 @@ class Tech(object):
         if top:
             #negate inventory item values
             for dep, count in invHas.iteritems():
-                if count > 0 and curGet[dep] > 0:
+                if dep is not self and count > 0 and curGet[dep] > 0:
                     dep.calcRequiredCounts(-min(count, curGet[dep]), curGet, hasReq, invHas)
             
             #fix so dependency items have at most min required
@@ -173,6 +177,11 @@ class TechMineItem(TechItem):
         if mineTool is None:
             TechItem.__init__(self, [], [], itemId)
         else:
+            #make mineTool iterable for convenience later
+            try:
+                iter(mineTool)
+            except TypeError:
+                mineTool = [mineTool]
             TechItem.__init__(self, [(mineTool, 1)], [], itemId)
             
         
@@ -204,26 +213,17 @@ class TechMineItem(TechItem):
             if client.playerInventory.countPlayerItemId(self.itemId)-startCount >= getCount*self.produces:
                 break
             
-            try:
-                logging.info("finding block %r" % self.mineItemId)
-                
-                #done = [False]
-                #result = [None]
-                #def callBack(res):
-                #    result[0] = res
-                #    done[0] = True
-                
-                blockPos = client.map.searchForBlock(client.pos, self.mineItemId, timeout=60)
-            except TimeoutError:
-                logging.error("timeout! block too far away!")
+            logging.info("finding block %r" % self.mineItemId)
+            
+            deferred = threads.deferToThread(client.map.searchForBlock,
+                            client.pos, self.mineItemId, timeout=60)
+            while not hasattr(deferred, 'result'):
+                yield True
+            if not isinstance(deferred.result, Point):
+                logging.error("couldn't find block!")
                 yield False
                 return
-            #TODO: Look for items on the ground
-        
-            if not blockPos:
-                logging.error("block not found")
-                yield False
-                return
+            blockPos = deferred.result
 
             for v in client.command_walkPathToPoint(blockPos,
                 destructive=True, blockBreakPenalty=5):
