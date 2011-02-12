@@ -10,7 +10,7 @@ import math
 import urllib
 
 from twisted.internet import task, threads
-from twisted.python import failure
+from twisted.python import log, failure
 
 from packets import *
 
@@ -42,7 +42,6 @@ class BotClient(object):
             PACKET_PRECHUNK: self._handlePreChunk,
             PACKET_CHUNK: self._handleChunk,
             PACKET_BLOCKCHANGE: self._handleBlockChange,
-            PACKET_COMPLEXENTITY: self._handleComplexEntity,
             PACKET_MULTIBLOCKCHANGE: self._handleMultiBlockChange,
 
             PACKET_SETSLOT: self._handleSetSlot,
@@ -113,7 +112,8 @@ class BotClient(object):
                 yield True
             
             if isinstance(deferred.result, failure.Failure):
-                logging.error("findpath failed")
+                logging.error("findpath failed:")
+                log.err(deferred.result)
                 yield False
                 return
             
@@ -259,7 +259,7 @@ class BotClient(object):
         
         self.protocol.sendPacked(PACKET_PLAYERBLOCKPLACE, position.x, position.y, position.z, face, item)
         
-        if self.map[position] in (BLOCK_CHEST, BLOCK_FURNACE, BLOCK_LITFURNACE, BLOCK_CRAFTINGTABLE):
+        if self.map[position] in (BLOCK_CHEST, BLOCK_FURNACE, BLOCK_BURNINGFURNACE, BLOCK_WORKBENCH):
             #activating, not placing
             return True
         
@@ -334,9 +334,9 @@ class BotClient(object):
             if matchBacon:
                 print "Giving bacon"
                 if matchBacon.group(1) is not None:
-                    item = ITEM_COOKEDMEAT
+                    item = ITEM_COOKEDPORKCHOP
                 else:
-                    item = ITEM_MEAT
+                    item = ITEM_RAWPORKCHOP
 
                 player = None
                 for player_ in self.players.itervalues():
@@ -385,7 +385,7 @@ class BotClient(object):
                                 #self.protocol.sendPacked(PACKET_CHAT, "I'm afraid I cannot do that, %s" % name)
                                 return
                             yield v
-                    logging.info("adding follow %r" % name)
+                    logging.info("going to %r" % name)
                     self.commandQueue.append(walkCommand(player.pos, name))
             elif command.lower() == "spawn":
                 self.commandQueue = []
@@ -478,20 +478,6 @@ class BotClient(object):
             chunk = self.map.chunks[chunkX, 0, chunkZ]
             for place, type, metadata in blocks:
                 chunk[place] = type
-    def _handleComplexEntity(self, parts):
-        x, y, z, payload = parts
-
-        from pymclevel import nbt
-        import gzip, StringIO
-
-        stringFile = StringIO.StringIO(payload)
-        gzipFile = gzip.GzipFile(fileobj = stringFile, mode = 'rb')
-        data = gzipFile.read()
-        gzipFile.close()
-        stringFile.close()
-
-        tag = nbt.load(buf=data)
-        #print "Complex Entity", x, y, z, tag['id']
 
     def _handleSetSlot(self, parts):
         windowId, slot, item = parts

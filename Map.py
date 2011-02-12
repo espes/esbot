@@ -197,9 +197,9 @@ class Map(object):
                             BLOCK_GRAVEL,
                             BLOCK_SAND,
                             BLOCK_WATER,
-                            BLOCK_STATIONARYWATER,
+                            BLOCK_SPRING,
                             BLOCK_LAVA,
-                            BLOCK_STATIONARYLAVA):
+                            BLOCK_LAVASPRING):
                         continue
                 except BlockNotLoadedError:
                     pass

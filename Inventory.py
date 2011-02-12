@@ -77,7 +77,7 @@ class InventoryHandler(object):
         logging.debug(" --> %r" % self.windows[windowId].items)
         
     
-#TODO: Make commands modify the inventory themselves
+
 class Inventory(object):
     def __init__(self, handler, windowId, playerItemsRange):
         self.handler = handler
@@ -249,3 +249,4 @@ class PlayerInventory(Inventory):
 class WorkBenchInventory(Inventory):
     def __init__(self, handler, windowId):
         Inventory.__init__(self, handler, windowId, range(10, 46))
+

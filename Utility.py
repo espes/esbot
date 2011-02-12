@@ -165,7 +165,7 @@ class GameLogic(object):
                 BLOCK_DIAMONDORE,
                 BLOCK_DIAMONDBLOCK,
                 BLOCK_ICE,
-                BLOCK_BLOODSTONE): return (level+1)*2
+                BLOCK_BRIMSTONE): return (level+1)*2
         
         return 1
     

@@ -24,8 +24,11 @@ from twisted.conch.insults.window import Widget, TopWindow, TextOutput, VBox, Yi
 class FixedTerminalBuffer(TerminalBuffer):
     lastWrite = ''
     def write(self, bytes):
-        TerminalBuffer.write(self, bytes)
         self.lastWrite = bytes
+        TerminalBuffer.write(self, bytes)
+    def nextLine(self):
+        self.x = 0
+        self.write('\n')
 #make key ids the same as ServerProtocol
 for name, const in zip(_KEY_NAMES, FUNCTION_KEYS):
     setattr(FixedTerminalBuffer, name, const)
@@ -178,7 +181,8 @@ class BotInterface(TerminalProtocol):
         self.manhole = Manhole()
         self.manholeView = TerminalProtocolWidget(self.manhole)
         #set the namespace directly so it's mutable
-        self.manhole.interpreter.locals = self.manholeNamespace
+        if self.manholeNamespace is not None:
+            self.manhole.interpreter.locals = self.manholeNamespace
         vbox.addChild(self.manholeView)
         
         self.window.addChild(vbox)
@@ -233,4 +237,8 @@ def runReactorWithTerminal(terminalProtocol, *args):
         os.write(fd, "\r\x1bc\r")
 
 if __name__ == "__main__":
-    
+    logging.basicConfig(filename="client.log", level=logging.DEBUG)
+    observer = log.PythonLoggingObserver()
+    observer.start()
+    log.startLoggingWithObserver(lambda a: '')
+    runReactorWithTerminal(CommandLineBotInterface)
