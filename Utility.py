@@ -43,7 +43,25 @@ class Point(object):
         self.x -= ox
         self.y -= oy
         self.z -= oz
-        
+    
+    def __cmp__(self, other):
+        return tuple(self).__cmp__(tuple(other))
+    def __lt__(self, other):
+        return tuple(self).__lt__(tuple(other))
+    def __le__(self, other):
+        return tuple(self).__le__(tuple(other))
+    def __eq__(self, other):
+        return tuple(self).__eq__(tuple(other))
+    def __ne__(self, other):
+        return tuple(self).__ne__(tuple(other))
+    def __gt__(self, other):
+        return tuple(self).__gt__(tuple(other))
+    def __ge__(self, other):
+        return tuple(self).__ge__(tuple(other))
+    
+    #only use if you're sure it's not going to be modified
+    def __hash__(self):
+        return tuple(self).__hash__()
     
 
 

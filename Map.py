@@ -71,18 +71,18 @@ class Map(object):
         
         startTime = time.time()
         
-        visited = {}
-        visited[tuple(source)] = True
+        visited = set([])
+        visited.add(source)
         q = deque([source])
         while q:
             pos = q.popleft()
             if time.time()-startTime > timeout:
                 logging.debug("last dis: %r" % (pos-source).mag())
                 raise TimeoutError
-            for dx, dy, dz in zip(self.adjX, self.adjY, self.adjZ):
-                npos = pos + (dx, dy, dz)
+            for adj in zip(self.adjX, self.adjY, self.adjZ):
+                npos = pos + adj
                 if maxDist is not None and npos.mag() > maxDist: continue
-                if tuple(npos) in visited: continue
+                if npos in visited: continue
                 try:
                     if self[npos] == targetBlock:
                         return npos
@@ -90,7 +90,7 @@ class Map(object):
                     continue
                 
                 q.append(npos)
-                visited[tuple(npos)] = True
+                visited.add(npos)
         
         return None
         
@@ -104,9 +104,10 @@ class Map(object):
         if destructive:
             walkableBlocks |= BLOCKS_BREAKABLE
         
-        #A* FTW
+        #Greedy BFS FTW
+        #(I fail - A* slower in general case. Patches welcome)
         try:
-            assert self[end] in walkableBlocks and self[end.x,end.y+1,end.z] in walkableBlocks
+            assert self[end] in walkableBlocks and self[end + (0, 1, 0)] in walkableBlocks
         except BlockNotLoadedError, e:
             if not acceptIncomplete:
                 raise e
@@ -116,21 +117,15 @@ class Map(object):
         adjY = self.adjY
         adjZ = self.adjZ
         
-        pq = []
-        heapq.heapify(pq)
-        
-        visited = {}
-        backTrack = {}
-        found = None
         
         mapInstance = self
-        class AStarNode(Point):
-            def __init__(self, *args):
-                Point.__init__(self, *args)
-                self.dist = (end-self).mag()
+        class AStarNode(object):
+            def __init__(self, pos):
+                self.pos = pos
+                self.dist = (end-self.pos).mag()
                 
                 try:
-                    self.blockId = mapInstance[self]
+                    self.blockId = mapInstance[self.pos]
                     self.available = True
                 except BlockNotLoadedError:
                     self.blockId = None
@@ -146,31 +141,40 @@ class Map(object):
                         mineTime = forClient.targetTick*3
                         mineDistance = forClient.speed*mineTime
                         self.dist += mineDistance
-                
+            def __cmp__(self, other):
+                return cmp(self.dist, other.dist)
         
-        startNode = AStarNode(*map(ifloor, start))
-        endNode = AStarNode(*map(ifloor, end))
+        pq = []
+        heapq.heapify(pq)
+
+        visited = set([])
+        backTrack = {}
+        found = None
+        
+        startNode = AStarNode(Point(*map(ifloor, start)))
+        endPos = Point(*map(ifloor, end))
         
         startTime = time.time()
         
+        visited.add(startNode.pos)
         heapq.heappush(pq, startNode)
-        while len(pq) > 0 and found is None:
+        while pq and found is None:
             if time.time()-startTime > 10:
                 raise TimeoutError
             
             node = heapq.heappop(pq)
-            if tuple(node) in visited:
-                continue
-            if tuple(node) == tuple(endNode) or \
+            if node.pos == endPos or \
                     ((not node.available) and acceptIncomplete) or \
                     (threshold is not None and node.dist <= threshold):
                 
                 found = node
                 break
             
-            visited[tuple(node)] = True
-            for dx, dy, dz in zip(adjX, adjY, adjZ):
-                newNode = AStarNode(node.x+dx, node.y+dy, node.z+dz)
+            
+            for adj in zip(adjX, adjY, adjZ):
+                newNode = AStarNode(node.pos + adj)
+                if newNode.pos in visited:
+                    continue
                 
                 if (not newNode.available) and (not acceptIncomplete):
                     continue
@@ -179,21 +183,21 @@ class Map(object):
                 
                 #Make sure the player can get through, player is 2 blocks vertically
                 try:
-                    if self[newNode.x, newNode.y+1, newNode.z] not in walkableBlocks:
+                    if self[newNode.pos + (0, 1, 0)] not in walkableBlocks:
                         continue
                 except BlockNotLoadedError:
                     pass
                 
                 #Make sure the block below is not a fence
                 try:
-                    if self[newNode.x, newNode.y-1, newNode.z] == BLOCK_FENCE:
+                    if self[newNode.pos + (0, -1, 0)] == BLOCK_FENCE:
                         continue
                 except BlockNotLoadedError:
                     pass
                 
                 #don't destroy blocks when things will fall on you
                 try:
-                    if destructive and self[newNode.x, newNode.y+2, newNode.z] in (
+                    if destructive and self[newNode.pos + (0, 2, 0)] in (
                             BLOCK_GRAVEL,
                             BLOCK_SAND,
                             BLOCK_WATER,
@@ -204,17 +208,19 @@ class Map(object):
                 except BlockNotLoadedError:
                     pass
                 
-                backTrack[newNode] = node
+                backTrack[newNode.pos] = node
+                visited.add(newNode.pos)
                 heapq.heappush(pq, newNode)
-                pq.sort(lambda a,b: cmp(a.dist, b.dist))
         
         if found is not None:
+            logging.debug("reconstruct")
+            
             path = []
             cur = found
             while cur != startNode:
-                path.append(Point(cur.x+0.5, cur.y, cur.z+0.5))
-                cur = backTrack[cur]
-            path.append(Point(cur.x+0.5, cur.y, cur.z+0.5)) #append the start node too
+                path.append(cur.pos + (0.5, 0, 0.5))
+                cur = backTrack[cur.pos]
+            path.append(cur.pos + (0.5, 0, 0.5)) #append the start node too
             
             path.reverse()
             if acceptIncomplete:
