@@ -79,10 +79,10 @@ class InventoryHandler(object):
     
 
 class Inventory(object):
-    def __init__(self, handler, windowId, playerItemsRange):
+    def __init__(self, handler, windowId, playerSlotsRange):
         self.handler = handler
         self.windowId = windowId
-        self.playerItemsRange = playerItemsRange
+        self.playerSlotsRange = playerSlotsRange
         
         self.inHand = None
         self.items = {}
@@ -90,19 +90,19 @@ class Inventory(object):
         self.transactionResult = defaultdict(lambda: None)
     def findPlayerItemId(self, itemId):
         for slot, item in self.items.items():
-            if slot not in self.playerItemsRange: continue
+            if slot not in self.playerSlotsRange: continue
             if item.itemId == itemId:
                 return slot
         return None
     def countPlayerItemId(self, itemId):
         count = 0
         for slot, item in self.items.items():
-            if slot not in self.playerItemsRange: continue
+            if slot not in self.playerSlotsRange: continue
             if item.itemId == itemId:
                 count += item.count
         return count
     def findPlayerEmptySlot(self):
-        for i in self.playerItemsRange:
+        for i in self.playerSlotsRange:
             if self.items.get(i) is None:
                 return i
         return None
@@ -203,7 +203,7 @@ class Inventory(object):
         while self.inHand is not None:
             
             for slot, item in self.items.items():
-                if slot not in self.playerItemsRange:
+                if slot not in self.playerSlotsRange:
                     continue
                 if self.inHand.itemId == item.itemId:
                     for v in self.command_click(slot): yield v
@@ -220,9 +220,52 @@ class Inventory(object):
     def onTransaction(self, actionNumber, accepted):
         self.transactionResult[actionNumber] = accepted
 
-class PlayerInventory(Inventory):
+class CraftingInventory(Inventory):
+    def __init__(self, handler, windowId, playerSlotsRange,
+                 craftSlotsRange, craftOutSlot, craftDim):
+        Inventory.__init__(self, handler, windowId, playerSlotsRange)
+        self.craftItemsRange = craftSlotsRange
+        self.craftOutSlot = craftOutSlot
+        self.craftW, self.craftH = craftDim
+    def command_fillRecipe(self, recipe):
+        for i in self.craftItemsRange:
+            if i in self.items:
+                for v in self.command_moveToPlayerInventory(i): yield v
+        
+        recipeW, recipeH = recipe.dimensions
+        craftSlots = defaultdict(list)
+        for i, r in enumerate(recipe.recipe):
+            if r is None: continue
+            (itemId, _), count = r
+            cx, cy = i%recipeW, i//recipeH
+            craftSlots[itemId].append(self.craftItemsRange[cy*self.craftW+cx])
+        
+        for itemId, slots in craftSlots.iteritems():
+            logging.debug("fill %r %r" % (itemId, slots))
+            for v in self.command_fillSlotsWithPlayerItem(itemId, slots):
+                yield v
+        
+        (producedItemId, _), producedCount = recipe.provides
+        
+        self.items[self.craftOutSlot] = Item(producedItemId, producedCount, 0)
+        for i in self.craftItemsRange:
+            if i in self.items:
+                self.items[i].count -= 1
+                if self.items[i].count <= 0:
+                    del self.items[i]
+                else:
+                    for v in self.command_moveToPlayerInventory(i): yield v
+        
+        yield True
+
+
+class WorkBenchInventory(CraftingInventory):
     def __init__(self, handler, windowId):
-        Inventory.__init__(self, handler, windowId, range(9, 45))
+        CraftingInventory.__init__(self, handler, windowId, range(10, 46), range(1, 10), 0, (3, 3))
+
+class PlayerInventory(CraftingInventory):
+    def __init__(self, handler, windowId):
+        CraftingInventory.__init__(self, handler, windowId, range(9, 45), range(1, 5), 0, (2, 2))
         
         self.equippableSlots = range(36, 45)
         self.equippedSlot = None
@@ -246,7 +289,5 @@ class PlayerInventory(Inventory):
         logging.error("No item %d" % itemId)
         yield False
 
-class WorkBenchInventory(Inventory):
-    def __init__(self, handler, windowId):
-        Inventory.__init__(self, handler, windowId, range(10, 46))
+
 

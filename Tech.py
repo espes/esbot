@@ -130,7 +130,7 @@ class Tech(object):
     def calcGetWithInventory(self, inventory, getCount=1):
         invHas = defaultdict(int)
         for slot, item in inventory.items.items():
-            if slot not in inventory.playerItemsRange: continue
+            if slot not in inventory.playerSlotsRange: continue
             tech = makeTech(item)
             if tech is None: continue
             
@@ -269,23 +269,6 @@ def buildConsumesFromRecipe(recipe):
         depends[itemId] += count
     return depends.items()
 
-#Assumes recipes won't require more than 1 in a slot
-def buildSlotsFromRecipe(recipe, slotDimensions):
-    slotW, slotH = slotDimensions
-    craftW, craftH = recipe.dimensions
-    
-    slots = defaultdict(list)
-    for i, r in enumerate(recipe.recipe):
-        if r is None: continue
-        (itemId, _), count = r
-        
-        assert isinstance(itemId, int)
-        
-        cx, cy = i%craftW, i//craftW
-        
-        slots[itemId].append( (cy*slotW+cx) + 1 )
-    return slots
-
 class TechFromRecipe(TechItem):
     def __init__(self, depends, recipe):
         consumes = buildConsumesFromRecipe(recipe)
@@ -305,25 +288,17 @@ class TechAssembleItem(TechFromRecipe):
         for i in xrange(iceil(getCount)):
             logging.debug("assembly get")
             logging.debug("place items")
-            craftSlots = buildSlotsFromRecipe(self.recipe, (2,2))
-            for itemId, slots in craftSlots.iteritems():
-                logging.debug("fill %r %r" % (itemId, slots))
-                for v in client.playerInventory.command_fillSlotsWithPlayerItem(itemId, slots):
-                    yield v
-        
-            client.playerInventory.items[0] = Item(self.itemId, self.produces, 0)
+            
+            for v in client.playerInventory.command_fillRecipe(self.recipe):
+                yield v
         
             logging.debug("retrieve")
             for v in client.playerInventory.command_moveToPlayerInventory(0):
                 yield v
             
-            #Destory recipe
-            for i in xrange(1, 5):
-                if i in client.playerInventory.items:
-                    del client.playerInventory.items[i]
         
         #close the window (throwing everything out)
-        client.inventoryHandler.closeWindow(client.playerInventory)
+        #client.inventoryHandler.closeWindow(client.playerInventory)
         yield True
 
 #Tech made with crafting table
@@ -369,28 +344,15 @@ class TechCraftItem(TechFromRecipe):
         
         craftingWindow = client.inventoryHandler.currentWindow
         
+        
         for i in xrange(iceil(getCount)):
             logging.debug("place items")
-            craftSlots = buildSlotsFromRecipe(self.recipe, (3,3))
-            for itemId, slots in craftSlots.iteritems():
-                logging.debug("fill %r %r" % (itemId, slots))
-                for v in craftingWindow.command_fillSlotsWithPlayerItem(itemId, slots):
-                    yield v
-        
-            yield True
-        
-            #TODO: Handle recipes better
-            craftingWindow.items[0] = Item(self.itemId, self.produces, 0)
+            for v in craftingWindow.command_fillRecipe(self.recipe):
+                yield v
         
             logging.debug("retrieve")
-            
             for v in craftingWindow.command_moveToPlayerInventory(0):
                 yield v
-            
-            #Destroy recipe
-            for i in xrange(1, 10):
-                if i in craftingWindow.items:
-                    del craftingWindow.items[i]
             
         
         client.inventoryHandler.closeWindow(craftingWindow)
