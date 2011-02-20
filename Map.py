@@ -11,7 +11,7 @@ from Utility import *
 
 class BlockNotLoadedError(Exception):
     pass
-class TimeoutError(Exception):
+class SearchTimeoutError(Exception):
     pass
 class Map(object):
     def __init__(self):
@@ -78,7 +78,7 @@ class Map(object):
             pos = q.popleft()
             if time.time()-startTime > timeout:
                 logging.debug("last dis: %r" % (pos-source).mag())
-                raise TimeoutError
+                raise SearchTimeoutError
             for adj in zip(self.adjX, self.adjY, self.adjZ):
                 npos = pos + adj
                 if maxDist is not None and npos.mag() > maxDist: continue
@@ -96,10 +96,11 @@ class Map(object):
         
     def findPath(self, start, end,
             acceptIncomplete=False,
-            threshold=None, 
+            threshold=None,
+            timeout=10,
             destructive=False,
             blockBreakPenalty=None,
-            forClient=None):
+            forClient=None,):
         walkableBlocks = BLOCKS_WALKABLE
         if destructive:
             walkableBlocks |= BLOCKS_BREAKABLE
@@ -159,8 +160,8 @@ class Map(object):
         visited.add(startNode.pos)
         heapq.heappush(pq, startNode)
         while pq and found is None:
-            if time.time()-startTime > 10:
-                raise TimeoutError
+            if time.time()-startTime > timeout:
+                raise SearchTimeoutError
             
             node = heapq.heappop(pq)
             if node.pos == endPos or \
