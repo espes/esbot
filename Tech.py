@@ -190,9 +190,10 @@ class TechItem(Tech):
         for pickup in client.pickups.values():
             #if pickup.item.itemId == self.itemId and (client.pos-pickup.pos).mag() < 5:
             if (client.pos-pickup.pos).mag() < 5:
-                for v in client.command_walkPathToPoint(pickup.pos):
-                    if v == False: break
-                    yield v
+                try:
+                    for v in client.command_walkPathToPoint(pickup.pos): yield v
+                except Exception:
+                    pass
                 else:
                     return
 
@@ -219,22 +220,19 @@ class TechMineItem(TechItem):
             #equipt the tool of choice (by now should have it in inventory)
             for tool in self.mineTool:
                 tool = TECH_MAP.get(tool) or tool
-                for v in client.playerInventory.command_equipItem(tool.itemId):
-                    if v == False:
-                        break
-                    yield v
+                try:
+                    for v in client.playerInventory.command_equipItem(tool.itemId): yield v
+                except Exception:
+                    pass
                 else:
                     break
             else:
-                logging.error("couldn't equipt required tool")
-                yield False
-                return
+                raise Exception, "couldn't equipt required tool"
         
         startCount = client.playerInventory.countPlayerItemId(self.itemId)
         
         while client.playerInventory.countPlayerItemId(self.itemId)-startCount < getCount*self.produces:
-            for v in TechItem.command_get(self, client, getCount):
-                yield v
+            for v in TechItem.command_get(self, client, getCount): yield v
             
             if client.playerInventory.countPlayerItemId(self.itemId)-startCount >= getCount*self.produces:
                 break
@@ -249,8 +247,7 @@ class TechMineItem(TechItem):
                 logging.error("couldn't find block!")
                 if isinstance(deferred.result, failure.Failure):
                     log.err(deferred.result)
-                yield False
-                return
+                raise Exception, "couldn't find block!"
             blockPos = deferred.result
             logging.debug("found at %r" % (blockPos,))
 
@@ -284,22 +281,20 @@ class TechAssembleItem(TechFromRecipe):
     def command_get(self, client, getCount=1):
         for v in TechFromRecipe.command_get(self, client, getCount):
             yield v
-        
-        for i in xrange(iceil(getCount)):
-            logging.debug("assembly get")
-            logging.debug("place items")
+        try:
+            for i in xrange(iceil(getCount)):
+                logging.debug("assembly get")
+                logging.debug("place items")
             
-            for v in client.playerInventory.command_fillRecipe(self.recipe):
-                yield v
-        
-            logging.debug("retrieve")
-            for v in client.playerInventory.command_moveToPlayerInventory(0):
-                yield v
+                for v in client.playerInventory.command_fillRecipe(self.recipe):
+                    yield v
             
-        
-        #close the window (throwing everything out)
-        #client.inventoryHandler.closeWindow(client.playerInventory)
-        yield True
+                logging.debug("retrieve")
+                for v in client.playerInventory.command_moveToPlayerInventory(0):
+                    yield v
+            yield True
+        finally:
+            client.inventoryHandler.closeWindow(client.playerInventory)
 
 #Tech made with crafting table
 class TechCraftItem(TechFromRecipe):
@@ -319,22 +314,16 @@ class TechCraftItem(TechFromRecipe):
             yield v
         
         logging.debug("place crafting table")
-        if not client.placeBlock(placePos + (0, -1, 0)): 
-            logging.error("failed placing crafting table")
-            yield False
-            return
+        if not client.placeBlock(placePos + (0, -1, 0)):
+            raise Exception, "failed placing crafting table"
         yield True
         
         if not client.map[placePos] == BLOCK_WORKBENCH:
-            logging.error("failed placing crafting table")
-            yield False
-            return
+            raise Exception, "failed placing crafting table"
 
         #hit it
         if not client.placeBlock(placePos):
-            logging.error("failed hitting crafing table")
-            yield False
-            return
+            raise Exception, "failed hitting crafing table"
         yield True
         
         logging.debug("wait for crafting window open")

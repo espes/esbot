@@ -263,6 +263,7 @@ ITEMS_AXE = frozenset([
 ])
 
 BLOCKITEM_NAMES = dict(BLOCKS_NAMES.items()+ITEMS_NAMES.items())
+BLOCKITEM_LOOKUP = dict((value, name) for name, value in BLOCKITEM_NAMES.iteritems())
 
 ITEMS_UNSTACKABLE = ITEMS_TOOLS | frozenset([
     ITEM_FLINTANDSTEEL,

@@ -1,3 +1,13 @@
 Hey look, I programmed myself a friend.
 
-run with client.py [username] [server] [port]
+run with client.py username server port [botname]
+
+cool chat command controls: (substitute esbot with username or botname if provided)
+    esbot, follow me
+    esbot, quit following me
+    esbot, come here
+    esbot, purge inventory
+    esbot, gimmeh torch
+        -esbot will proceed on a valiant quest to get you a torch
+    esbot, respawn
+        -incase esbot died in its valiant quest :(

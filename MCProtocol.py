@@ -8,6 +8,7 @@ import urllib
 import logging
 from collections import defaultdict
 from twisted.internet import reactor, protocol
+from twisted.python import log
 
 from packets import *
 
@@ -71,9 +72,12 @@ class MCBaseClientProtocol(protocol.Protocol):
                 self.sendPacked(PACKET_KEEPALIVE)
             
             for handler in self.packetHandlers[packetType]:
-                ret = handler(parts)
-                if ret == False:
-                    return
+                try:
+                    ret = handler(parts)
+                    if ret == False:
+                        return
+                except Exception as ex:
+                    log.err(ex)
     
     def _handleLogin(self, parts):
         id, name, motd, mapSeed, dimension = parts

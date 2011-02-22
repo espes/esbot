@@ -14,9 +14,11 @@ from twisted.python import log, failure
 
 from packets import *
 
+from Tech import *
 from Utility import *
 from Inventory import *
 from Map import *
+
 
 class BotClient(object):
     def __init__(self, protocol, botname):
@@ -75,18 +77,22 @@ class BotClient(object):
         self.runTask = None
         #self.running = False
         self.commandQueue = []
-        
+    
+    def command_gotoEntity(self, entityId, threshold=1):
+        while True:
+            try:
+                pos = self.entities[entityId].pos
+            except KeyError:
+                raise Exception, "No entity %d" % entityId
+            if (pos-self.pos).mag() <= threshold: break
+            for v in self.command_walkPathToPoint(pos, targetThreshold=threshold): yield v
     def command_followEntity(self, entityId):
         while True:
             try:
                 pos = self.entities[entityId].pos
             except KeyError:
-                logging.error("No entity %d" % entityId)
-                yield False
-                return
-            
-            for v in self.command_walkPathToPoint(pos, targetThreshold=4):
-                yield v
+                raise Exception, "No entity %d" % entityId
+            for v in self.command_walkPathToPoint(pos, targetThreshold=4): yield v
     def command_walkPathToPoint(self, targetPoint,
                 targetThreshold=None,
                 destructive=False, blockBreakPenalty=None,
@@ -114,14 +120,11 @@ class BotClient(object):
             if isinstance(deferred.result, failure.Failure):
                 logging.error("findpath failed:")
                 log.err(deferred.result)
-                yield False
-                return
+                raise Exception, "findpath failed"
             
             path, complete = deferred.result
             if path is None:
-                logging.error("findpath failed")
-                yield False
-                return
+                raise Exception, "findpath failed"
             
             for i, point in enumerate(path):
                 #This shouldn't fail, as points in the path should be close enough to the player
@@ -370,6 +373,27 @@ class BotClient(object):
                 else:
                     logging.error("couldn't find %r" % followName)
                     #self.protocol.sendPacked(PACKET_CHAT, "I'm afraid I cannot do that, %s" % name)
+            fetchMatch = re.match(r"gimm?eh?\s+(?:(?P<count>\d+)\s+)?(?P<item>[a-zA-Z0-9]+)\s*", command)
+            if fetchMatch:
+                player = self.getPlayerByName(name)
+                itemName = fetchMatch.groupdict()['item']
+                count = fetchMatch.groupdict()['count']
+                if count is None: count = 1
+                else: count = int(count)
+                
+                if itemName not in BLOCKITEM_LOOKUP:
+                    logging.error("no item %r" % (fetMatch.group(1),))
+                elif player:
+                    def fetchItemCommand(itemId, entityId):
+                        if itemId not in TECH_MAP:
+                            raise Exception, "%r not in tech tree" % (BLOCKITEM_NAMES[itemId],)
+                        if self.playerInventory.countPlayerItemId(itemId) < count:
+                            evalCount = (count-self.playerInventory.countPlayerItemId(itemId))/TECH_MAP[itemId].produces
+                            for v in TECH_MAP[itemId].command_getOrderly(self, iceil(evalCount)): yield v
+                        for v in self.command_gotoEntity(entityId): yield v
+                        for v in self.playerInventory.command_drop(itemId, count): yield v
+
+                    self.queueCommand(fetchItemCommand(BLOCKITEM_LOOKUP[itemName], player.id))
             elif command.lower().startswith("quit following"):
                 logging.info("quit following")
                 for c in self.commandQueue:
@@ -379,19 +403,20 @@ class BotClient(object):
                 player = self.getPlayerByName(name)
                 if player:
                     def walkCommand(pos, name):
-                        for v in self.command_walkPathToPoint(pos):
-                            if v == False:
-                                logging.error("I'm afraid I cannot do that, %s" % name)
-                                #self.protocol.sendPacked(PACKET_CHAT, "I'm afraid I cannot do that, %s" % name)
-                                return
-                            yield v
+                        try:
+                            for v in self.command_walkPathToPoint(pos): yield v
+                        except Exception as ex:
+                            logging.error("I'm afraid I cannot do that, %s" % (name,))
+                            #self.protocol.sendPacked(PACKET_CHAT, "I'm afraid I cannot do that, %s" % name)
+                            raise ex
                     logging.info("going to %r" % name)
-                    self.commandQueue.append(walkCommand(player.pos, name))
-            elif command.lower() == "spawn":
+                    self.queueCommand(walkCommand(player.pos, name))
+            elif command.lower() == "respawn":
                 self.commandQueue = []
-                self.protocol.sendPacked(PACKET_CHAT, "/spawn")
+                #self.protocol.sendPacked(PACKET_CHAT, "/spawn")
+                self.protocol.sendPacked(PACKET_RESPAWN)
             elif command.lower() == "purge inventory":
-                self.commandQueue.append(self.playerInventory.command_purge())
+                self.queueCommand(self.playerInventory.command_purge())
 
 
 

@@ -68,17 +68,15 @@ class Builder(object):
                     
                 logging.debug("build %r" % buildPoint)
                 foundPath = True
-                for v in self.client.command_walkPathToPoint( \
-                        Point(buildPoint.x, buildPoint.y, buildPoint.z), 3):
-                    if v == False:
-                        foundPath = False
-                        break
-                    yield v
-                if foundPath:
-                    #Above it anyway, no need to check if it's not air
-                    self.client.placeBlock(buildPoint, type)
-                else:
-                    logging.debug("skipping")
+                try:
+                    for v in self.client.command_walkPathToPoint( \
+                            Point(buildPoint.x, buildPoint.y, buildPoint.z), 3): yield v
+                except Exception:
+                    logging.error("skipping block")
+                    continue
+                    
+                #Above it anyway, no need to check if it's not air
+                self.client.placeBlock(buildPoint, type)
     
     def sphereBlocks(self, center, radius, type):
         center = Point(*map(ifloor, center))
@@ -154,13 +152,12 @@ class Builder(object):
                         pass
                     #print ">>", x, y, z
                     
-                    foundPath = True
-                    for v in self.client.command_walkPathToPoint(Point(x, y+1, z)):
-                        if v == False:
-                            foundPath = False
-                            break
-                        yield v
-                    if foundPath and self.client.map[x, y, z] not in BLOCKS_UNBREAKABLE:
+                    try:
+                        for v in self.client.command_walkPathToPoint(Point(x, y+1, z)): yield v
+                    except Exception:
+                        continue
+                       
+                    if self.client.map[x, y, z] not in BLOCKS_UNBREAKABLE:
                         self.client.breakBlock(Point(x, y, z))
                         yield True
     def command_buildCuboid(self, startPos, dx, dy, dz, type):
@@ -174,12 +171,12 @@ class Builder(object):
                         pass
                     
                     foundPath = True
-                    for v in self.client.command_walkPathToPoint(Point(x, y+1, z)):
-                        if v == False:
-                            foundPath = False
-                            break
-                        yield v
-                    if foundPath and self.client.map[x, y, z] == BLOCK_AIR:
+                    try:
+                        for v in self.client.command_walkPathToPoint(Point(x, y+1, z)): yield v
+                    except Exception:
+                        continue
+                    
+                    if self.client.map[x, y, z] == BLOCK_AIR:
                         self.client.placeBlock(Point(x, y, z), type)
                         yield True
     def command_buildWall(self, startPos, dx, dz, height, type):
@@ -195,28 +192,23 @@ class Builder(object):
                 except BlockNotLoadedError:
                     #Fix: Make this less crappy
                     
-                    borked = False
-                    for v in self.client.command_walkPathToPoint(Point(x, 127, z)):
-                        if v == False:
-                            borked = True
-                            break
-                        yield v
-                    if borked: continue
+                    try:
+                        for v in self.client.command_walkPathToPoint(Point(x, 127, z)): yield v
+                    except Exception:
+                        continue
                     for y in range(127, 0, -1):
                          if self.client.map[x, y, z] != BLOCK_AIR:
                              startY = y
                              break
-                 
                 
                 for y in range(startY, height):
-                    foundPath = True
-                    for v in self.client.command_walkPathToPoint(Point(x, y+1, z)):
-                        if v == False:
-                            foundPath = False
-                            break
-                        yield v
-                    if foundPath:
-                        self.client.placeBlock(Point(x, y, z), type)
-                        yield True
+                    try:
+                        for v in self.client.command_walkPathToPoint(Point(x, y+1, z)): yield v
+                    except Exception:
+                        continue
+                    
+                    self.client.placeBlock(Point(x, y, z), type)
+                    yield True
+
         
     

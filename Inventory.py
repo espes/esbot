@@ -177,9 +177,7 @@ class Inventory(object):
         while targetSlots:
             srcSlot = self.findPlayerItemId(itemId)
             if srcSlot is None:
-                logging.error("insuffient items to fill")
-                yield False
-                return
+                raise Exception, "insuffient items to fill"
             for v in self.command_click(srcSlot): yield v
             
             logging.debug("fill item %r" % self.inHand)
@@ -197,6 +195,20 @@ class Inventory(object):
         for slot, item in self.items.items():
             for v in self.command_click(slot): yield v
             for v in self.command_click(-999): yield v
+    def command_drop(self, itemId, count=1, dropAll=False):
+        while count > 0 or dropAll:
+            srcSlot = self.findPlayerItemId(itemId)
+            if srcSlot is None: return
+            if self.items[srcSlot].count <= count or dropAll:
+                count -= self.items[srcSlot].count
+                for v in self.command_click(srcSlot): yield v
+                for v in self.command_click(-999): yield v
+            else:
+                for i in xrange(count):
+                    count -= 1
+                    for v in self.command_click(srcSlot, True): yield v
+                    for v in self.command_click(-999): yield v
+                    
     def command_moveToPlayerInventory(self, sourceSlot):
         for v in self.command_click(sourceSlot): yield v
         
@@ -211,9 +223,7 @@ class Inventory(object):
             else:
                 emptySlot = self.findPlayerEmptySlot()
                 if emptySlot is None:
-                    logging.error("no empty slot for item")
-                    yield False
-                    return
+                    raise Exception, "no empty slot for item"
                 for v in self.command_click(emptySlot): yield v
                 assert self.inHand is None
         
@@ -237,7 +247,7 @@ class CraftingInventory(Inventory):
         for i, r in enumerate(recipe.recipe):
             if r is None: continue
             (itemId, _), count = r
-            cx, cy = i%recipeW, i//recipeH
+            cx, cy = i%recipeW, i//recipeW
             craftSlots[itemId].append(self.craftItemsRange[cy*self.craftW+cx])
         
         for itemId, slots in craftSlots.iteritems():
@@ -286,8 +296,7 @@ class PlayerInventory(CraftingInventory):
                     self.handler.protocol.sendPacked(PACKET_ITEMSWITCH, 0)
                     self.equippedSlot = self.equippableSlots[0]
                 return
-        logging.error("No item %d" % itemId)
-        yield False
+        raise Exception, "No item %d" % itemId
 
 
 
