@@ -100,7 +100,7 @@ class Map(object):
             timeout=10,
             destructive=False,
             blockBreakPenalty=None,
-            forClient=None,):
+            forClient=None):
         walkableBlocks = BLOCKS_WALKABLE
         if destructive:
             walkableBlocks |= BLOCKS_BREAKABLE
@@ -136,10 +136,10 @@ class Map(object):
                     if blockBreakPenalty is not None:
                         self.dist += blockBreakPenalty
                     elif forClient:
-                        #TODO: estimate using number of hits
-                    
-                        #takes about 3? game ticks to clear the blocks
-                        mineTime = forClient.targetTick*3
+                        #Assume not holding anything :\
+                        #20 hits per sec
+                        mineTime = gamelogic.calcHitsToBreakBlock(forClient, self.blockId, -1)/20
+                        
                         mineDistance = forClient.speed*mineTime
                         self.dist += mineDistance
             def __cmp__(self, other):

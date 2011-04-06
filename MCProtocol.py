@@ -14,6 +14,8 @@ from packets import *
 
 from DataBuffer import DataBuffer
 
+from settings import *
+
 class MCBaseClientProtocol(protocol.Protocol):
     def sendPacked(self, mtype, *args):
         fmt = PACKET_FORMATS[mtype]
@@ -86,25 +88,26 @@ class MCBaseClientProtocol(protocol.Protocol):
         serverId, = parts
 
         logging.info("Handshake: %r" % serverId)
-
-        logging.info("Authing...")
-        params = urllib.urlencode({
-            'user': self.factory.username,
-            'sessionId': self.factory.sessionId,
-            'serverId': serverId
-        })
-        f = urllib.urlopen("http://www.minecraft.net/game/joinserver.jsp?%s" % params)
-        ret = f.read()
-        if ret == "Bad login":
-            logging.error(ret)
-            self.transport.loseConnection()
-            return False
-            
-        logging.debug(repr(ret))
+        if ENABLE_AUTH:
+            logging.info("Authing...")
+            params = urllib.urlencode({
+                'user': self.factory.username,
+                'sessionId': self.factory.sessionId,
+                'serverId': serverId
+            })
         
-        logging.info("Done")
+            f = urllib.urlopen("http://www.minecraft.net/game/joinserver.jsp?%s" % params)
+            ret = f.read()
+            if ret == "Bad login":
+                logging.error(ret)
+                self.transport.loseConnection()
+                return False
+            
+            logging.debug(repr(ret))
+        
+            logging.info("Done")
 
-        self.sendPacked(PACKET_LOGIN, 8, self.factory.username, "Password", 0, 0)
+        self.sendPacked(PACKET_LOGIN, 10, self.factory.username, "Password", 0, 0)
     def _handleChat(self, parts):
         message, = parts
         logging.info("Chat\t%r" % message)

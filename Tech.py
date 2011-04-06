@@ -5,7 +5,7 @@
 #Everyone loves really bad code
 
 from __future__ import division
-
+from time import sleep
 from collections import defaultdict
 
 from twisted.internet import threads
@@ -237,11 +237,11 @@ class TechMineItem(TechItem):
             if client.playerInventory.countPlayerItemId(self.itemId)-startCount >= getCount*self.produces:
                 break
             
-            logging.info("finding block %r" % self.mineItemId)
+            logging.info("finding block %r" % (self.mineItemId,))
             
             deferred = threads.deferToThread(client.map.searchForBlock,
                             client.pos, self.mineItemId, timeout=60)
-            while not hasattr(deferred, 'result'):
+            while not hasattr(deferred, 'result'): #hack
                 yield True
             if not isinstance(deferred.result, Point):
                 logging.error("couldn't find block!")
@@ -338,7 +338,6 @@ class TechCraftItem(TechFromRecipe):
             logging.debug("place items")
             for v in craftingWindow.command_fillRecipe(self.recipe):
                 yield v
-        
             logging.debug("retrieve")
             for v in craftingWindow.command_moveToPlayerInventory(0):
                 yield v
@@ -351,7 +350,13 @@ class TechCraftItem(TechFromRecipe):
             yield v
 
 TECH_MAP = {
+    
+    #Also, breaking saplings :\
+    BLOCK_SAPLING: TechMineItem(BLOCK_SAPLING, mineItem=BLOCK_LEAVES),
+    #Also, breaking grass :\
     BLOCK_DIRT: TechMineItem(BLOCK_DIRT),
+    ITEM_FLINT: TechMineItem(ITEM_FLINT, mineItem=BLOCK_GRAVEL),
+    
     BLOCK_LOG: TechMineItem(BLOCK_LOG),
     
     BLOCK_COBBLESTONE: TechMineItem(BLOCK_COBBLESTONE,

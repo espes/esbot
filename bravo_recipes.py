@@ -547,6 +547,7 @@ class Ladder(Recipe):
         (items["stick"].key, 1),
         (items["stick"].key, 1),
         (items["stick"].key, 1),
+        (items["stick"].key, 1),
         None,
         (items["stick"].key, 1),
     )

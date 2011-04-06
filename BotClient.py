@@ -78,7 +78,7 @@ class BotClient(object):
         #self.running = False
         self.commandQueue = []
     
-    def command_gotoEntity(self, entityId, threshold=1):
+    def command_gotoEntity(self, entityId, threshold=2):
         while True:
             try:
                 pos = self.entities[entityId].pos
@@ -101,54 +101,61 @@ class BotClient(object):
         if destructive:
             walkableBlocks |= BLOCKS_BREAKABLE
         
-        #if (not lookTowardsWalk) and self.lookTarget is None:
-        self.lookTarget = targetPoint
-        #    self.lookAt(self.lookTarget)
+        setLook = False
+        if (not lookTowardsWalk) and self.lookTarget is None:
+            self.lookTarget = targetPoint
+            self.lookAt(self.lookTarget)
+            setLook = True
         
-        targetPoint = Point(*targetPoint) #Make a copy
-        while True:
-            found = True
-            #print "finding path"
+        try:
+            targetPoint = Point(*targetPoint) #Make a copy
+            while True:
+                found = True
+                #print "finding path"
             
-            deferred = threads.deferToThread(self.map.findPath,
-                            self.pos, targetPoint, True, targetThreshold,
-                            destructive=destructive, blockBreakPenalty=None)
-            #hack
-            while not hasattr(deferred, 'result'):
-                yield True
+                deferred = threads.deferToThread(self.map.findPath,
+                                self.pos, targetPoint, True, targetThreshold,
+                                destructive=destructive, blockBreakPenalty=blockBreakPenalty,
+                                forClient=self)
+                #hack
+                while not hasattr(deferred, 'result'):
+                    yield True
             
-            if isinstance(deferred.result, failure.Failure):
-                logging.error("findpath failed:")
-                log.err(deferred.result)
-                raise Exception, "findpath failed"
+                if isinstance(deferred.result, failure.Failure):
+                    logging.error("findpath failed:")
+                    log.err(deferred.result)
+                    raise Exception, "findpath failed"
             
-            path, complete = deferred.result
-            if path is None:
-                raise Exception, "findpath failed"
+                path, complete = deferred.result
+                if path is None:
+                    raise Exception, "findpath failed"
             
-            for i, point in enumerate(path):
-                #This shouldn't fail, as points in the path should be close enough to the player
-                #But sometimes it does.
-                try:
-                    if self.map[point] not in walkableBlocks:
+                for i, point in enumerate(path):
+                    #This shouldn't fail, as points in the path should be close enough to the player
+                    #But sometimes it does.
+                    try:
+                        if self.map[point] not in walkableBlocks:
+                            found = False
+                            break
+                    except BlockNotLoadedError:
+                        #Find a new path and hope it doesn't happen again
                         found = False
                         break
-                except BlockNotLoadedError:
-                    #Find a new path and hope it doesn't happen again
-                    found = False
-                    break
                 
-                if (not destructive) and 0<i<len(path)-1 and ( \
-                    (path[i-1].x==point.x==path[i+1].x and path[i-1].y==point.y==path[i+1].y) or \
-                    (path[i-1].x==point.x==path[i+1].x and path[i-1].z==point.z==path[i+1].z) or \
-                    (path[i-1].y==point.y==path[i+1].y and path[i-1].z==point.z==path[i+1].z) ):
-                    continue
-                for v in self.command_moveTowards(point,
-                    lookTowardsWalk=lookTowardsWalk,
-                    destructive=destructive): yield v
+                    if (not destructive) and 0<i<len(path)-1 and ( \
+                        (path[i-1].x==point.x==path[i+1].x and path[i-1].y==point.y==path[i+1].y) or \
+                        (path[i-1].x==point.x==path[i+1].x and path[i-1].z==point.z==path[i+1].z) or \
+                        (path[i-1].y==point.y==path[i+1].y and path[i-1].z==point.z==path[i+1].z) ):
+                        continue
+                    for v in self.command_moveTowards(point,
+                        lookTowardsWalk=lookTowardsWalk,
+                        destructive=destructive): yield v
             
-            if found and complete:
-                return
+                if found and complete:
+                    return
+        finally:
+            if setLook:
+                self.lookTarget = None
 
     def command_moveTowards(self, position, lookTowardsWalk=False, threshold=0.1, speed=None, destructive=False):
         if speed is None:
@@ -174,12 +181,11 @@ class BotClient(object):
                 #i.e. axis aligned path
                 #TODO: raycast to destroy blocks
                 if dy >= 0:
-                    self.breakBlock(target)
-                    self.breakBlock(target+(0, 1, 0))
+                    for v in self.command_breakBlock(target): yield v
+                    for v in self.command_breakBlock(target+(0, 1, 0)): yield v
                 else:
-                    self.breakBlock(target+(0, 1, 0))
-                    self.breakBlock(target)
-                yield True
+                    for v in self.command_breakBlock(target+(0, 1, 0)): yield v
+                    for v in self.command_breakBlock(target): yield v
                     
             
             self.pos = target
@@ -212,7 +218,7 @@ class BotClient(object):
         self.protocol.sendPacked(PACKET_PLAYERLOOK, direction, pitch, 1)
     
     #must have line-of-sight to center of block
-    def breakBlock(self, position, hits=None, destroyWalkable=False):
+    def command_breakBlock(self, position, hits=None, destroyWalkable=False):
         position = Point(*map(ifloor, position))
         positionCenter = position + (0.5, 0.5, 0.5)
         
@@ -224,13 +230,17 @@ class BotClient(object):
         self.lookAt(positionCenter)
         
         if hits is None:
-            hits = gamelogic.calcHitsToBreakBlock(self, -1, block)
+            hits = gamelogic.calcHitsToBreakBlock(self, block)
         
         dx, dy, dz = Point(self.pos.x, self.headY, self.pos.z) - positionCenter
         face = gamelogic.getFace(dx, dy, dz)
         
+        self.protocol.sendPacked(PACKET_PLAYERBLOCKDIG, 0, position.x, position.y, position.z, face)
+        startTime = time.time()
         for i in xrange(hits):
             self.protocol.sendPacked(PACKET_PLAYERBLOCKDIG, 1, position.x, position.y, position.z, face)
+            self.protocol.sendPacked(PACKET_ANIMATION, 0, 1)
+            while time.time()-startTime < i/20: yield True
         
         self.protocol.sendPacked(PACKET_PLAYERBLOCKDIG, 3, position.x, position.y, position.z, face)
         self.protocol.sendPacked(PACKET_PLAYERBLOCKDIG, 2, position.x, position.y, position.z, face)
@@ -309,10 +319,12 @@ class BotClient(object):
                     logging.error("Exception in command %r:" % self.commandQueue[0])
                     logging.exception(ex)
                     self.commandQueue.pop(0)
-        
-        if not self.movedThisTick:
+        else:
+        #if not self.movedThisTick:
             self.lookAt(self.lookTarget or (self.players and (min(self.players.values(),
                             key=lambda p: (p.pos-self.pos).mag()).pos + (0, PLAYER_HEIGHT, 0))) or Point(0, 70, 0))
+        
+        if not self.movedThisTick:
             self.protocol.sendPacked(PACKET_PLAYERONGROUND, 1)
     
     

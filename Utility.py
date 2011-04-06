@@ -187,7 +187,13 @@ class GameLogic(object):
         
         return 1
     
-    def calcHitsToBreakBlock(self, client, item, block):
+    def calcHitsToBreakBlock(self, client, block, item=None):
+        if item is None:
+            item = client.playerInventory.equippedItem or -1
+        
+        #since items are not fully implemented
+        item = -1
+        
         if block in BLOCKS_HARDNESS:
             hardness = BLOCKS_HARDNESS[block]
         else:

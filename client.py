@@ -14,6 +14,7 @@ from twisted.python import log
 from BotProtocol import BotFactory
 from Interface import CommandLineBotInterface, runReactorWithTerminal
 
+from settings import *
 
 #twisted idiom fail, yeah
 def main():
@@ -32,19 +33,22 @@ def main():
     if len(argv) >= 5:
         botname = argv[4]
     
-    password = getpass()
+    if ENABLE_AUTH:
+        password = getpass()
     
-    logging.info("Logging in")
-    params = urllib.urlencode({'user': loginname, 'password': password, 'version': 9001})
-    handler = urllib.urlopen("http://www.minecraft.net/game/getversion.jsp", params)
-    ret = handler.read()
-    if ret == "Bad login":
-        logging.error(ret)
-        return -1
+        logging.info("Logging in")
+        params = urllib.urlencode({'user': loginname, 'password': password, 'version': 9001})
+        handler = urllib.urlopen("http://www.minecraft.net/game/getversion.jsp", params)
+        ret = handler.read()
+        if ret == "Bad login":
+            logging.error(ret)
+            return -1
     
-    version, downloadTicket, username, sessionId, _ = ret.split(":")
-    logging.info("Got %r %r %r %r" % (version, downloadTicket, username, sessionId))
-    
+        version, downloadTicket, username, sessionId, _ = ret.split(":")
+        logging.info("Got %r %r %r %r" % (version, downloadTicket, username, sessionId))
+    else:
+        sessionId = 0
+        username = botname
     interfaceNamespace = {}
     
     f = BotFactory(username, sessionId, botname, interfaceNamespace)

@@ -158,8 +158,7 @@ class Builder(object):
                         continue
                        
                     if self.client.map[x, y, z] not in BLOCKS_UNBREAKABLE:
-                        self.client.breakBlock(Point(x, y, z))
-                        yield True
+                        for v in self.client.command_breakBlock(Point(x, y, z)): yield v
     def command_buildCuboid(self, startPos, dx, dy, dz, type):
         for x in xrange(startPos.x, startPos.x+dx, dx/abs(dx)):
             for z in xrange(startPos.z, sstartPos.z+dz, dz/abs(dz)):
