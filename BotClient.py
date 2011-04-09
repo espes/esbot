@@ -85,15 +85,15 @@ class BotClient(object):
             except KeyError:
                 raise Exception, "No entity %d" % entityId
             if (pos-self.pos).mag() <= threshold: break
-            for v in self.command_walkPathToPoint(pos, targetThreshold=threshold): yield v
+            for v in self.command_walkPathTo(pos, targetThreshold=threshold): yield v
     def command_followEntity(self, entityId):
         while True:
             try:
                 pos = self.entities[entityId].pos
             except KeyError:
                 raise Exception, "No entity %d" % entityId
-            for v in self.command_walkPathToPoint(pos, targetThreshold=4): yield v
-    def command_walkPathToPoint(self, targetPoint,
+            for v in self.command_walkPathTo(pos, targetThreshold=4): yield v
+    def command_walkPathTo(self, targetPoint,
                 targetThreshold=None,
                 destructive=False, blockBreakPenalty=None,
                 lookTowardsWalk=False):
@@ -129,7 +129,7 @@ class BotClient(object):
                 path, complete = deferred.result
                 if path is None:
                     raise Exception, "findpath failed"
-            
+                
                 for i, point in enumerate(path):
                     #This shouldn't fail, as points in the path should be close enough to the player
                     #But sometimes it does.
@@ -141,12 +141,19 @@ class BotClient(object):
                         #Find a new path and hope it doesn't happen again
                         found = False
                         break
-                
-                    if (not destructive) and 0<i<len(path)-1 and ( \
-                        (path[i-1].x==point.x==path[i+1].x and path[i-1].y==point.y==path[i+1].y) or \
-                        (path[i-1].x==point.x==path[i+1].x and path[i-1].z==point.z==path[i+1].z) or \
-                        (path[i-1].y==point.y==path[i+1].y and path[i-1].z==point.z==path[i+1].z) ):
-                        continue
+                    
+                    if 0<=i<len(path)-1:
+                        for offset in [
+                                (0, 0, 0),
+                                (-0.5, 0, -0.5),  (-0.5, 0, 0.5), (0.5, 0, 0.5), (0.5, 0, -0.5),
+                                (-0.5, 2, -0.5),  (-0.5, 2, 0.5), (0.5, 2, 0.5), (0.5, 2, -0.5),]:
+                            if self.map.blockInLine(self.pos+offset, path[i+1]+offset, BLOCKS_UNWALKABLE):
+                                #logging.debug("broke %r" % (offset,))
+                                break
+                        else:
+                            #logging.debug("skip")
+                            continue
+                    
                     for v in self.command_moveTowards(point,
                         lookTowardsWalk=lookTowardsWalk,
                         destructive=destructive): yield v
@@ -239,7 +246,8 @@ class BotClient(object):
         startTime = time.time()
         for i in xrange(hits):
             self.protocol.sendPacked(PACKET_PLAYERBLOCKDIG, 1, position.x, position.y, position.z, face)
-            self.protocol.sendPacked(PACKET_ANIMATION, 0, 1)
+            if i%10:
+                self.protocol.sendPacked(PACKET_ANIMATION, 0, 1)
             while time.time()-startTime < i/20: yield True
         
         self.protocol.sendPacked(PACKET_PLAYERBLOCKDIG, 3, position.x, position.y, position.z, face)
@@ -416,7 +424,7 @@ class BotClient(object):
                 if player:
                     def walkCommand(pos, name):
                         try:
-                            for v in self.command_walkPathToPoint(pos): yield v
+                            for v in self.command_walkPathTo(pos): yield v
                         except Exception as ex:
                             logging.error("I'm afraid I cannot do that, %s" % (name,))
                             #self.protocol.sendPacked(PACKET_CHAT, "I'm afraid I cannot do that, %s" % name)

@@ -191,7 +191,7 @@ class TechItem(Tech):
             #if pickup.item.itemId == self.itemId and (client.pos-pickup.pos).mag() < 5:
             if (client.pos-pickup.pos).mag() < 5:
                 try:
-                    for v in client.command_walkPathToPoint(pickup.pos): yield v
+                    for v in client.command_walkPathTo(pickup.pos): yield v
                 except Exception:
                     pass
                 else:
@@ -251,7 +251,7 @@ class TechMineItem(TechItem):
             blockPos = deferred.result
             logging.debug("found at %r" % (blockPos,))
 
-            for v in client.command_walkPathToPoint(blockPos,
+            for v in client.command_walkPathTo(blockPos,
                 destructive=True, blockBreakPenalty=10):
                 yield v
 
@@ -306,7 +306,7 @@ class TechCraftItem(TechFromRecipe):
         
         #Move up one block
         placePos = client.pos
-        for v in client.command_walkPathToPoint(client.pos + (0, 1, 0), destructive=True):
+        for v in client.command_walkPathTo(client.pos + (0, 1, 0), destructive=True):
             yield v
         
         logging.debug("equip crafting table")
@@ -346,7 +346,7 @@ class TechCraftItem(TechFromRecipe):
         client.inventoryHandler.closeWindow(craftingWindow)
         
         #walk back down destroying the crafting table
-        for v in client.command_walkPathToPoint(placePos, destructive=True):
+        for v in client.command_walkPathTo(placePos, destructive=True, blockBreakPenalty=0):
             yield v
 
 TECH_MAP = {
@@ -356,7 +356,7 @@ TECH_MAP = {
     #Also, breaking grass :\
     BLOCK_DIRT: TechMineItem(BLOCK_DIRT),
     ITEM_FLINT: TechMineItem(ITEM_FLINT, mineItem=BLOCK_GRAVEL),
-    
+    BLOCK_SAND: TechMineItem(BLOCK_SAND),
     BLOCK_LOG: TechMineItem(BLOCK_LOG),
     
     BLOCK_COBBLESTONE: TechMineItem(BLOCK_COBBLESTONE,

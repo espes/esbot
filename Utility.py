@@ -16,11 +16,16 @@ def ifloor(n):
 def iceil(n):
     return int(ceil(n))
 
+inf = float("inf")
+
 class Point(object):
     def __init__(self, x, y, z):
         self.x, self.y, self.z = x, y, z
     def mag(self):
-        return (self.x**2+self.y**2+self.z**2)**0.5
+        try:
+            return (self.x**2+self.y**2+self.z**2)**0.5
+        except OverflowError:
+            return inf
     def __iter__(self):
         yield self.x
         yield self.y
@@ -28,22 +33,49 @@ class Point(object):
     def __repr__(self):
         return "Point(x=%r, y=%r, z=%r)" % tuple(self)
     def __add__(self, other):
-        ox, oy, oz = other
+        try: ox, oy, oz = other
+        except TypeError: ox, oy, oz = other, other, other
         return Point(self.x+ox, self.y+oy, self.z+oz)
     def __iadd__(self, other):
-        ox, oy, oz = other
+        try: ox, oy, oz = other
+        except TypeError: ox, oy, oz = other, other, other
         self.x += ox
         self.y += oy
         self.z += oz
     def __sub__(self, other):
-        ox, oy, oz = other
+        try: ox, oy, oz = other
+        except TypeError: ox, oy, oz = other, other, other
         return Point(self.x-ox, self.y-oy, self.z-oz)
     def __isub__(self, other):
-        ox, oy, oz = other
+        try: ox, oy, oz = other
+        except TypeError: ox, oy, oz = other, other, other
         self.x -= ox
         self.y -= oy
         self.z -= oz
+    def __mul__(self, other):
+        try: ox, oy, oz = other
+        except TypeError: ox, oy, oz = other, other, other
+        return Point(self.x*ox, self.y*oy, self.z*oz)
+    def __imul__(self, other):
+        try: ox, oy, oz = other
+        except TypeError: ox, oy, oz = other, other, other
+        self.x *= ox
+        self.y *= oy
+        self.z *= oz
+    def __div__(self, other):
+        try: ox, oy, oz = other
+        except TypeError: ox, oy, oz = other, other, other
+        return Point(self.x/ox, self.y/oy, self.z/oz)
+    def __idiv__(self, other):
+        try: ox, oy, oz = other
+        except TypeError: ox, oy, oz = other, other, other
+        self.x /= ox
+        self.y /= oy
+        self.z /= oz
+    def __abs__(self):
+        return Point(abs(self.x), abs(self.y), abs(self.z))
     
+    #fail :\
     def __cmp__(self, other):
         return tuple(self).__cmp__(tuple(other))
     def __lt__(self, other):

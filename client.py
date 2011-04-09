@@ -46,8 +46,11 @@ def main():
     
         version, downloadTicket, username, sessionId, _ = ret.split(":")
         logging.info("Got %r %r %r %r" % (version, downloadTicket, username, sessionId))
+        
+        if not botname: botname = username
     else:
         sessionId = 0
+        if not botname: botname = loginname
         username = botname
     interfaceNamespace = {}
     

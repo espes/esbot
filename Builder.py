@@ -69,7 +69,7 @@ class Builder(object):
                 logging.debug("build %r" % buildPoint)
                 foundPath = True
                 try:
-                    for v in self.client.command_walkPathToPoint( \
+                    for v in self.client.command_walkPathTo( \
                             Point(buildPoint.x, buildPoint.y, buildPoint.z), 3): yield v
                 except Exception:
                     logging.error("skipping block")
@@ -153,7 +153,7 @@ class Builder(object):
                     #print ">>", x, y, z
                     
                     try:
-                        for v in self.client.command_walkPathToPoint(Point(x, y+1, z)): yield v
+                        for v in self.client.command_walkPathTo(Point(x, y+1, z)): yield v
                     except Exception:
                         continue
                        
@@ -171,7 +171,7 @@ class Builder(object):
                     
                     foundPath = True
                     try:
-                        for v in self.client.command_walkPathToPoint(Point(x, y+1, z)): yield v
+                        for v in self.client.command_walkPathTo(Point(x, y+1, z)): yield v
                     except Exception:
                         continue
                     
@@ -192,7 +192,7 @@ class Builder(object):
                     #Fix: Make this less crappy
                     
                     try:
-                        for v in self.client.command_walkPathToPoint(Point(x, 127, z)): yield v
+                        for v in self.client.command_walkPathTo(Point(x, 127, z)): yield v
                     except Exception:
                         continue
                     for y in range(127, 0, -1):
@@ -202,7 +202,7 @@ class Builder(object):
                 
                 for y in range(startY, height):
                     try:
-                        for v in self.client.command_walkPathToPoint(Point(x, y+1, z)): yield v
+                        for v in self.client.command_walkPathTo(Point(x, y+1, z)): yield v
                     except Exception:
                         continue
                     

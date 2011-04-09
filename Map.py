@@ -66,6 +66,7 @@ class Map(object):
             chunk[x-cx, y-cy, z-cz] = value
         else:
             raise BlockNotLoadedError
+        
     def searchForBlock(self, source, targetBlock, timeout=10, maxDist=None):
         source = Point(*map(ifloor, source))
         
@@ -93,6 +94,46 @@ class Map(object):
                 visited.add(npos)
         
         return None
+        
+    def raycast(self, start, end, clip=True):
+        start = Point(*start)
+        end = Point(*end)
+        
+        d = end-start
+        dis = (end-start).mag()
+        
+        try: xd = d/abs(d.x)
+        except ZeroDivisionError: xd = Point(0, inf, inf)
+        xc = start+xd*(start.x%1 if xd.x > 0 else 1-(start.x%1))
+        xg = lambda: Point(ifloor(xc.x) if xd.x > 0 else ifloor(xc.x)-1, ifloor(xc.y), ifloor(xc.z))
+        
+        try: yd = d/abs(d.y)
+        except ZeroDivisionError: yd = Point(inf, 0, inf)
+        yc = start+yd*(start.y%1 if yd.y > 0 else 1-(start.y%1))
+        yg = lambda: Point(ifloor(yc.x), ifloor(yc.y) if yd.y > 0 else ifloor(yc.y)-1, ifloor(yc.z))
+        
+        try: zd = d/abs(d.z)
+        except ZeroDivisionError: zd = Point(inf, inf, 0)
+        zc = start+zd*(start.z%1 if zd.z > 0 else 1-(start.z%1))
+        zg = lambda: Point(ifloor(zc.x), ifloor(zc.y), ifloor(zc.z) if zd.z > 0 else ifloor(zc.z)-1)
+        
+        while True:
+            cur, curd, curg = min(
+                (xc, xd, xg), (yc, yd, yg), (zc, zd, zg),
+                key=lambda p: (p[0]-start).mag())
+            if clip and (cur-start).mag() > dis:
+                return
+            #print cur, curg()
+            yield curg()
+            
+            cur += curd
+    
+    def blockInLine(self, start, end, cands):
+        for p in self.raycast(start, end):
+            if self[p] in cands:
+                return True
+        return False
+        
         
     def findPath(self, start, end,
             acceptIncomplete=False,
