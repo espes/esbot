@@ -33,10 +33,11 @@ class Tech(object):
         self.consumes = consumes
         
         self.produces = producesCount
+
     def clientHas(self, client, count=1):
         pass
     
-    #Note: due to lazyness, asume any item's depends won't also be a consume somewhere
+    #Note: due to lazyness, assume any item's depends won't also be a consume somewhere
     def calcRequiredCounts(self, getCount=1, curGet=None,
                            hasReq=None, invHas=None):
         #print "%r %r" % (self, getCount)
@@ -48,7 +49,7 @@ class Tech(object):
             hasReq = defaultdict(int)
         if invHas is None:
             invHas = defaultdict(int)
-        
+    
         for dep, count in self.depends:
             #handle when there are optional depends
             # - This is broken
@@ -102,6 +103,7 @@ class Tech(object):
                 if count <= 0:
                     del curGet[dep]
             return curGet
+
     def calcGetOrder(self, order=None, seen=None, validItems=None):
         #top-sort is fun
         top = False
@@ -127,6 +129,7 @@ class Tech(object):
         seen.add(self)
         if top:
             return order
+
     def calcGetWithInventory(self, inventory, getCount=1):
         invHas = defaultdict(int)
         for slot, item in inventory.items.items():
