@@ -142,6 +142,8 @@ class BotClient(object):
                         found = False
                         break
                     
+                    #if we can get to the next block in the path without hitting something,
+                    #skip the current block.
                     if 0<=i<len(path)-1:
                         for offset in [
                                 (0, 0, 0),
@@ -151,8 +153,13 @@ class BotClient(object):
                                 #logging.debug("broke %r" % (offset,))
                                 break
                         else:
-                            #logging.debug("skip")
-                            continue
+                            #make sure we don't float
+                            for pos in self.map.raycast(self.pos, path[i+1]):
+                                if self.map[pos+(0, -1, 0)] in BLOCKS_WALKABLE:
+                                    break
+                            else:
+                                #logging.debug("skip")
+                                continue
                     
                     for v in self.command_moveTowards(point,
                         lookTowardsWalk=lookTowardsWalk,
@@ -315,6 +322,10 @@ class BotClient(object):
     def tick(self):
         self.movedThisTick = False
         
+        #not done init
+        if self.pos == (-1, -1, -1):
+            return
+        
         if len(self.commandQueue) > 0:
             try:
                 v = self.commandQueue[0].next()
@@ -331,9 +342,18 @@ class BotClient(object):
         #if not self.movedThisTick:
             self.lookAt(self.lookTarget or (self.players and (min(self.players.values(),
                             key=lambda p: (p.pos-self.pos).mag()).pos + (0, PLAYER_HEIGHT, 0))) or Point(0, 70, 0))
-        
+            
+            #fall
+            if self.map[self.pos + (0, -1, 0)] in BLOCKS_WALKABLE:
+                logging.info("falling...")
+                y=0
+                for y in xrange(self.pos.y, -1, -1):
+                    if self.map[self.pos.x, y, self.pos.z] not in BLOCKS_WALKABLE:
+                        break
+                self.queueCommand(self.command_moveTowards(Point(self.pos.x, y+1, self.pos.z)))
         if not self.movedThisTick:
-            self.protocol.sendPacked(PACKET_PLAYERONGROUND, 1)
+            pass
+            #self.protocol.sendPacked(PACKET_PLAYERONGROUND, 1)
     
     
     

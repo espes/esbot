@@ -51,11 +51,11 @@ class MCBaseClientProtocol(protocol.Protocol):
         while parseBuffer.lenLeft() > 0:
             packetType = ord(parseBuffer.read(1))
             
-            #print "packet", hex(packetType)
+            #logging.debug("packet 0x%x" % (packetType,))
             try:
                 format = PACKET_FORMATS[packetType]
             except KeyError:
-                logging.error("invalid packet type - %x %r %r" % (packetType,
+                logging.error("invalid packet type - 0x%x %r %r" % (packetType,
                     len(self.buffer), self.buffer))
                 
                 self.transport.loseConnection()

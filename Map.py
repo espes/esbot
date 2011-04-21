@@ -237,6 +237,13 @@ class Map(object):
                 except BlockNotLoadedError:
                     pass
                 
+                #make sure we're not just floating
+                try:
+                    if self[newNode.pos + (0, -1, 0)] in walkableBlocks and self[node.pos + (0, -1, 0)] in walkableBlocks:
+                        continue
+                except BlockNotLoadedError:
+                    pass
+                
                 #don't destroy blocks when things will fall on you
                 try:
                     if destructive and self[newNode.pos + (0, 2, 0)] in (
