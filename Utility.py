@@ -4,7 +4,6 @@
 
 from __future__ import division
 
-import array
 import logging
 from math import floor, ceil
 
@@ -142,22 +141,6 @@ class MapPlayer(object):
         self.name, self.pos = name, pos
     def __repr__(self):
         return "MapPlayer(name=%r, pos=%r)" % (self.name, self.pos)
-class Chunk(object):
-    def __init__(self, position, size, chunkData):
-        self.pos = position
-        self.size = size
-        self.sizeX, self.sizeY, self.sizeZ = size
-        
-        self.blockData = array.array('B', chunkData[:self.sizeX*self.sizeY*self.sizeZ])
-    def __getitem__(self, key):
-        assert isinstance(key, Point) or isinstance(key, tuple)
-        x, y, z = key
-        return self.blockData[y + z*self.sizeY + x*self.sizeY*self.sizeZ]
-    def __setitem__(self, key, value):
-        x, y, z = key
-        self.blockData[y + z*self.sizeY + x*self.sizeY*self.sizeZ] = value
-
-
                     
 class GameLogic(object):
     def getFace(self, dx, dy, dz):

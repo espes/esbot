@@ -92,7 +92,10 @@ class BotClient(object):
                 pos = self.entities[entityId].pos
             except KeyError:
                 raise Exception, "No entity %d" % entityId
-            for v in self.command_walkPathTo(pos, targetThreshold=4): yield v
+            try:
+                for v in self.command_walkPathTo(pos, targetThreshold=4): yield v
+            except Exception:
+                pass
     def command_walkPathTo(self, targetPoint,
                 targetThreshold=None,
                 destructive=False, blockBreakPenalty=None,
@@ -144,6 +147,8 @@ class BotClient(object):
                         found = False
                         break
                     
+                    #if we can get to the next block in the path without hitting something,
+                    #skip the current block.
                     if 0<=i<len(path)-1:
                         for offset in [
                                 (0, 0, 0),
@@ -153,8 +158,13 @@ class BotClient(object):
                                 #logging.debug("broke %r" % (offset,))
                                 break
                         else:
-                            #logging.debug("skip")
-                            continue
+                            #make sure we don't float
+                            for pos in self.map.raycast(self.pos, path[i+1]):
+                                if self.map[pos+(0, -1, 0)] in BLOCKS_WALKABLE:
+                                    break
+                            else:
+                                #logging.debug("skip")
+                                continue
                     
                     for v in self.command_moveTowards(point,
                         lookTowardsWalk=lookTowardsWalk,
@@ -309,6 +319,9 @@ class BotClient(object):
             return self.commandQueue[0]
         return None
     
+    def say(self, stuff):
+        self.protocol.sendPacked(PACKET_CHAT, stuff)
+    
     def stop(self):
         self.runTask.stop()
     def start(self):
@@ -316,6 +329,10 @@ class BotClient(object):
         self.runTask.start(self.targetTick)
     def tick(self):
         self.movedThisTick = False
+        
+        #not done init
+        if self.pos == (-1, -1, -1):
+            return
         
         if len(self.commandQueue) > 0:
             try:
@@ -333,9 +350,21 @@ class BotClient(object):
         #if not self.movedThisTick:
             self.lookAt(self.lookTarget or (self.players and (min(self.players.values(),
                             key=lambda p: (p.pos-self.pos).mag()).pos + (0, PLAYER_HEIGHT, 0))) or Point(0, 70, 0))
-        
+            
+            try:
+                #fall
+                if self.map[self.pos + (0, -1, 0)] in BLOCKS_WALKABLE:
+                    logging.info("falling...")
+                    y=0
+                    for y in xrange(self.pos.y, -1, -1):
+                        if self.map[self.pos.x, y, self.pos.z] not in BLOCKS_WALKABLE:
+                            break
+                    self.queueCommand(self.command_moveTowards(Point(self.pos.x, y+1, self.pos.z)))
+            except BlockNotLoadedError:
+                pass
         if not self.movedThisTick:
-            self.protocol.sendPacked(PACKET_PLAYERONGROUND, 1)
+            pass
+            #self.protocol.sendPacked(PACKET_PLAYERONGROUND, 1)
     
     
     
@@ -353,32 +382,9 @@ class BotClient(object):
 
             logging.debug("Command - %r" % command)
 
-            #can't just spawn items anymore D:
-            """
-            matchBacon = re.match(r"gimm?eh? (fried )?bacon", command)
-            if matchBacon:
-                print "Giving bacon"
-                if matchBacon.group(1) is not None:
-                    item = ITEM_COOKEDPORKCHOP
-                else:
-                    item = ITEM_RAWPORKCHOP
-
-                player = None
-                for player_ in self.players.itervalues():
-                    if player_.name == name:
-                        player = player_
-                        break
-                else:
-                    if name in self.mapPlayers:
-                        player = self.mapPlayers[name]
-
-                if player:
-                    x, y, z = player.pos
-                    self.protocol.sendPacked(PACKET_PICKUPSPAWN, 0, item, 1, 400, x*32, y*32, z*32, 0, 0, 0)
-            """
             warpMatch = re.match(r"warp\s+(.*)\s*", command)
             if warpMatch:
-                self.protocol.sendPacked(PACKET_CHAT, "/warp %s" % warpMatch.group(1))
+                self.say("/warp %s" % warpMatch.group(1))
             followMatch = re.match(r"follow\s+([a-zA-Z0-9]+)\s*", command)
             if followMatch:
                 followName = followMatch.group(1).strip().lower()
@@ -394,7 +400,7 @@ class BotClient(object):
                     self.commandQueue.append(self.command_followEntity(player.id))
                 else:
                     logging.error("couldn't find %r" % followName)
-                    #self.protocol.sendPacked(PACKET_CHAT, "I'm afraid I cannot do that, %s" % name)
+                    #self.say("I'm afraid I cannot do that, %s" % name)
             fetchMatch = re.match(r"gimm?eh?\s+(?:(?P<count>\d+)\s+)?(?P<item>[a-zA-Z0-9]+)\s*", command)
             if fetchMatch:
                 player = self.getPlayerByName(name)
@@ -427,15 +433,14 @@ class BotClient(object):
                     def walkCommand(pos, name):
                         try:
                             for v in self.command_walkPathTo(pos): yield v
-                        except Exception as ex:
+                        except Exception:
                             logging.error("I'm afraid I cannot do that, %s" % (name,))
-                            #self.protocol.sendPacked(PACKET_CHAT, "I'm afraid I cannot do that, %s" % name)
-                            raise ex
+                            #self.say("I'm afraid I cannot do that, %s" % name)
+                            raise
                     logging.info("going to %r" % name)
                     self.queueCommand(walkCommand(player.pos, name))
             elif command.lower() == "respawn":
                 self.commandQueue = []
-                #self.protocol.sendPacked(PACKET_CHAT, "/spawn")
                 self.protocol.sendPacked(PACKET_RESPAWN)
             elif command.lower() == "purge inventory":
                 self.queueCommand(self.playerInventory.command_purge())

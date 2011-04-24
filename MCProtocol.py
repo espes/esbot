@@ -51,11 +51,11 @@ class MCBaseClientProtocol(protocol.Protocol):
         while parseBuffer.lenLeft() > 0:
             packetType = ord(parseBuffer.read(1))
             
-            #print "packet", hex(packetType)
+            #logging.debug("packet 0x%x" % (packetType,))
             try:
                 format = PACKET_FORMATS[packetType]
             except KeyError:
-                logging.error("invalid packet type - %x %r %r" % (packetType,
+                logging.error("invalid packet type - 0x%x %r %r" % (packetType,
                     len(self.buffer), self.buffer))
                 
                 self.transport.loseConnection()
@@ -82,8 +82,8 @@ class MCBaseClientProtocol(protocol.Protocol):
                     log.err(ex)
     
     def _handleLogin(self, parts):
-        id, name, motd, mapSeed, dimension = parts
-        logging.info("Server login %r %r %r %r %r" % (id, name, motd, mapSeed, dimension))
+        id, name, mapSeed, dimension = parts
+        logging.info("Server login %r %r %r %r" % (id, name, mapSeed, dimension))
     def _handleHandshake(self, parts):
         serverId, = parts
 
@@ -107,7 +107,7 @@ class MCBaseClientProtocol(protocol.Protocol):
         
             logging.info("Done")
 
-        self.sendPacked(PACKET_LOGIN, 10, self.factory.username, "Password", 0, 0)
+        self.sendPacked(PACKET_LOGIN, 11, self.factory.username, 0, 0)
     def _handleChat(self, parts):
         message, = parts
         logging.info("Chat\t%r" % message)

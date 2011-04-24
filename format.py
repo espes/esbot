@@ -21,7 +21,7 @@ class Format(object):
         for char in self.format:
             if char == "S": # minecraft string
                 length, = readStruct("!h", dataBuffer)
-                yield dataBuffer.read(length)
+                yield unicode(dataBuffer.read(length*2), "utf_16_be")
             elif char == "M":
                 yield tuple(EntityMetadataFormat().decode(dataBuffer))
             else:
@@ -34,7 +34,7 @@ class Format(object):
         for char, arg in zip(self.format, args):
             if char == "S": # minecraft string
                 data += struct.pack("!h", len(arg))
-                data += arg
+                data += arg.encode("utf_16_be")
             elif char in ("b", "B") and isinstance(arg, str) and len(arg) == 1: # Byte as string
                 data += arg
             else:
