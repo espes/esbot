@@ -3,7 +3,6 @@
 # - espes
 
 import heapq
-from collections import deque
 import time
 
 from constants import *
@@ -13,6 +12,50 @@ class BlockNotLoadedError(Exception):
     pass
 class SearchTimeoutError(Exception):
     pass
+
+try:
+    import numpy
+except ImportError:
+    import array
+    class Chunk(object):
+        def __init__(self, position, size, chunkData):
+            self.pos = position
+            self.size = size
+            self.sizeX, self.sizeY, self.sizeZ = size
+        
+            #TODO: handle other chunk data
+        
+            self.blockData = array.array('B', chunkData[:self.sizeX*self.sizeY*self.sizeZ])
+        def __getitem__(self, key):
+            x, y, z = key
+            return self.blockData[y + z*self.sizeY + x*self.sizeY*self.sizeZ]
+        def __setitem__(self, key, value):
+            x, y, z = key
+            self.blockData[y + z*self.sizeY + x*self.sizeY*self.sizeZ] = value
+        def getBlocks(self, value):
+            for x in xrange(self.sizeX):
+                for y in xrange(self.sizeY):
+                    for z in xrange(self.sizeZ):
+                        if self[x, y, z] == value:
+                            yield x, y, z
+else:
+    class Chunk(object):
+        def __init__(self, position, size, chunkData):
+            self.pos = position
+            self.size = size
+            self.sizeX, self.sizeY, self.sizeZ = size
+            
+            d = numpy.fromstring(chunkData[:self.sizeX*self.sizeY*self.sizeZ], dtype=numpy.uint8)
+            self.blockData = d.reshape(self.sizeX, self.sizeZ, self.sizeY).swapaxes(1, 2)
+        def __getitem__(self, key):
+            return self.blockData[tuple(key)]
+        def __setitem__(self, key, value):
+            self.blockData[tuple(key)] = value
+        def getBlocks(self, value):
+            return numpy.transpose(numpy.nonzero(self.blockData==value))
+
+
+
 class Map(object):
     def __init__(self):
         
@@ -67,32 +110,16 @@ class Map(object):
         else:
             raise BlockNotLoadedError
         
-    def searchForBlock(self, source, targetBlock, timeout=10, maxDist=None):
+    def searchForBlock(self, source, targetBlock, maxDist=None):
         source = Point(*map(ifloor, source))
         
-        startTime = time.time()
-        
-        visited = set([])
-        visited.add(source)
-        q = deque([source])
-        while q:
-            pos = q.popleft()
-            if time.time()-startTime > timeout:
-                logging.debug("last dis: %r" % (pos-source).mag())
-                raise SearchTimeoutError
-            for adj in zip(self.adjX, self.adjY, self.adjZ):
-                npos = pos + adj
-                if maxDist is not None and npos.mag() > maxDist: continue
-                if npos in visited: continue
-                try:
-                    if self[npos] == targetBlock:
-                        return npos
-                except BlockNotLoadedError:
-                    continue
-                
-                q.append(npos)
-                visited.add(npos)
-        
+        for i, chunk in enumerate(sorted(self.chunks.itervalues(), key=lambda c: (source-c.pos).mag())):
+            r = None
+            for cp in chunk.getBlocks(targetBlock):
+                cp = Point(*cp)
+                if r is None or (source-cp).mag() < (source-r).mag():
+                    r = cp
+            if r is not None: return r
         return None
         
     def raycast(self, start, end, clip=True):
@@ -239,7 +266,9 @@ class Map(object):
                 
                 #make sure we're not just floating
                 try:
-                    if self[newNode.pos + (0, -1, 0)] in walkableBlocks and self[node.pos + (0, -1, 0)] in walkableBlocks:
+                    if (self[newNode.pos + (0, -1, 0)] in BLOCKS_WALKABLE and
+                            self[node.pos + (0, -1, 0)] in BLOCKS_WALKABLE and
+                            self[newNode.pos] != BLOCK_LADDER):
                         continue
                 except BlockNotLoadedError:
                     pass

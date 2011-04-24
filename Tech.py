@@ -240,7 +240,7 @@ class TechMineItem(TechItem):
             logging.info("finding block %r" % (self.mineItemId,))
             
             deferred = threads.deferToThread(client.map.searchForBlock,
-                            client.pos, self.mineItemId, timeout=60)
+                            client.pos, self.mineItemId)
             while not hasattr(deferred, 'result'): #hack
                 yield True
             if not isinstance(deferred.result, Point):
@@ -250,10 +250,14 @@ class TechMineItem(TechItem):
                 raise Exception, "couldn't find block!"
             blockPos = deferred.result
             logging.debug("found at %r" % (blockPos,))
-
-            for v in client.command_walkPathTo(blockPos,
-                destructive=True, blockBreakPenalty=10):
-                yield v
+            
+            try:
+                for v in client.command_walkPathTo(blockPos,
+                    destructive=True, blockBreakPenalty=10):
+                    yield v
+            except Exception as ex:
+                logging.exception(ex)
+                continue
 
 def buildConsumesFromRecipe(recipe):
     depends = defaultdict(int)
