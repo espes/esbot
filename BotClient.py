@@ -399,7 +399,7 @@ class BotClient(object):
                 else:
                     logging.error("couldn't find %r" % followName)
                     #self.say("I'm afraid I cannot do that, %s" % name)
-            fetchMatch = re.match(r"gimm?eh?\s+(?:(?P<count>\d+)\s+)?(?P<item>[a-zA-Z0-9]+)\s*", command)
+            fetchMatch = re.match(r"(?:gimm?eh?|get meh?)\s+(?:(?P<count>\d+)\s+)?(?P<item>[a-zA-Z0-9]+)\s*", command)
             if fetchMatch:
                 player = self.getPlayerByName(name)
                 itemName = fetchMatch.groupdict()['item']
@@ -437,7 +437,7 @@ class BotClient(object):
                             raise
                     logging.info("going to %r" % name)
                     self.queueCommand(walkCommand(player.pos, name))
-            elif command.lower() == "respawn":
+            elif command.lower() == "respawn" or command.lower() == "spawn":
                 self.commandQueue = []
                 self.protocol.sendPacked(PACKET_RESPAWN)
             elif command.lower() == "purge inventory":

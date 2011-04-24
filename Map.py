@@ -116,7 +116,7 @@ class Map(object):
         for i, chunk in enumerate(sorted(self.chunks.itervalues(), key=lambda c: (source-c.pos).mag())):
             r = None
             for cp in chunk.getBlocks(targetBlock):
-                cp = Point(*cp)
+                cp = Point(*cp)+chunk.pos
                 if r is None or (source-cp).mag() < (source-r).mag():
                     r = cp
             if r is not None: return r

@@ -177,8 +177,8 @@ class TechItem(Tech):
         self.itemId = itemId
     def __repr__(self):
         if self.itemId in BLOCKITEM_NAMES:
-            return "TechItem(%r)" % (BLOCKITEM_NAMES[self.itemId],)
-        return "TechItem(%r)" % (self.itemId,)
+            return "%s(%r)" % (self.__class__.__name__, BLOCKITEM_NAMES[self.itemId])
+        return "%s(%r)" % (self.__class__.__name__, self.itemId)
     def clientHas(self, client, count=1):
         return client.inventoryHandler.currentWindow.countPlayerItemId(self.itemId) >= count
     def command_get(self, client, getCount=1):
@@ -373,6 +373,10 @@ TECH_MAP = {
     
     BLOCK_IRONORE: TechMineItem(BLOCK_IRONORE,
                 (ITEM_STONEPICKAXE, ITEM_IRONPICKAXE, ITEM_DIAMONDPICKAXE)),
+    
+    ITEM_DIAMOND: TechMineItem(ITEM_DIAMOND,
+                (ITEM_IRONPICKAXE, ITEM_DIAMONDPICKAXE),
+                BLOCK_DIAMONDORE)
 }
 for recipe in recipes:
     (producesItemId, _), producesCount = recipe.provides
