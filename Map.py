@@ -232,9 +232,10 @@ class Map(object):
                 raise SearchTimeoutError
             
             node = heapq.heappop(pq)
-            if node.pos == endPos or \
-                    ((not node.available) and acceptIncomplete) or \
-                    (threshold is not None and node.dist <= threshold):
+            if (node.pos == endPos or 
+                    ((not node.available) and acceptIncomplete) or 
+                    (threshold is not None and node.dist <= threshold and
+                        self[node.pos + (0, -1, 0)] not in BLOCKS_WALKABLE) ):
                 
                 found = node
                 break
@@ -266,7 +267,8 @@ class Map(object):
                 
                 #make sure we're not just floating
                 try:
-                    if (self[newNode.pos + (0, -1, 0)] in BLOCKS_WALKABLE and
+                    if (newNode.pos.y >= node.pos.y and
+                            self[newNode.pos + (0, -1, 0)] in BLOCKS_WALKABLE and
                             self[node.pos + (0, -1, 0)] in BLOCKS_WALKABLE and
                             self[newNode.pos] != BLOCK_LADDER):
                         continue

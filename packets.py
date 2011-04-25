@@ -99,7 +99,7 @@ PACKET_FORMATS = {
     PACKET_MULTIBLOCKCHANGE: MultiBlockChangeFormat(),
     PACKET_BLOCKCHANGE: Format("ibibb"),
     PACKET_PLAYNOTEBLOCK: Format("ihibb"),
-    PACKET_WINDOWOPEN: Format("bbSb"),
+    PACKET_WINDOWOPEN: Format("bb8b"),
     PACKET_WINDOWCLOSE: Format("b"),
     PACKET_WINDOWCLICK: WindowClickFormat(),
     PACKET_WINDOWITEMS: WindowItemsFormat(),

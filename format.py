@@ -22,7 +22,10 @@ class Format(object):
             if char == "S": # minecraft string
                 length, = readStruct("!h", dataBuffer)
                 yield unicode(dataBuffer.read(length*2), "utf_16_be")
-            elif char == "M":
+            elif char == "8": # minecraft string8
+                length, = readStruct("!h", dataBuffer)
+                yield dataBuffer.read(length)
+            elif char == "M": # hack
                 yield tuple(EntityMetadataFormat().decode(dataBuffer))
             else:
                 res, = readStruct("!"+char, dataBuffer)
@@ -35,6 +38,9 @@ class Format(object):
             if char == "S": # minecraft string
                 data += struct.pack("!h", len(arg))
                 data += arg.encode("utf_16_be")
+            elif char == "8":
+                data += struct.pack("!h", len(arg))
+                data += arg.encode("utf_8")
             elif char in ("b", "B") and isinstance(arg, str) and len(arg) == 1: # Byte as string
                 data += arg
             else:
@@ -99,12 +105,12 @@ class SetSlotFormat(Format):
 class WindowClickFormat(Format):
     def __init__(self):
         pass
-    def encode(self, windowId, slot, rightClick, actionNumber, item):
+    def encode(self, windowId, slot, rightClick, actionNumber, shiftClick, item):
         if item is None:
-            return struct.pack("!bhbhh", windowId, slot, rightClick, actionNumber, -1)
+            return struct.pack("!bhbhbh", windowId, slot, rightClick, actionNumber, shiftClick, -1)
         else:
             itemId, count, uses = item
-            return struct.pack("!bhbhhbh", windowId, slot, rightClick, actionNumber, itemId, count, uses)
+            return struct.pack("!bhbhbhbh", windowId, slot, rightClick, actionNumber, shiftClick, itemId, count, uses)
 
 class ExplosionFormat(Format):
     def __init__(self):

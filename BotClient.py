@@ -317,6 +317,73 @@ class BotClient(object):
             return self.commandQueue[0]
         return None
     
+    def parseCommand(self, name, command):
+        logging.debug("Command - %r" % command)
+
+        warpMatch = re.match(r"warp\s+(.*)\s*", command, re.IGNORECASE)
+        if warpMatch:
+            self.say("/warp %s" % warpMatch.group(1))
+        followMatch = re.match(r"follow\s+([a-zA-Z0-9]+)\s*", command, re.IGNORECASE)
+        if followMatch:
+            followName = followMatch.group(1).strip().lower()
+            if followName == "me":
+                followName = name.lower()
+
+            player = self.getPlayerByName(followName, True)
+            if player:
+                #remove existing follow commands
+                for c in self.commandQueue:
+                    if c.__name__ == self.command_followEntity.__name__:
+                        self.commandQueue.remove(c)
+                self.commandQueue.append(self.command_followEntity(player.id))
+            else:
+                logging.error("couldn't find %r" % followName)
+                #self.say("I'm afraid I cannot do that, %s" % name)
+        fetchMatch = re.match(r"(?:gimm?eh?|get meh?(?: a)?)\s+(?:(?P<count>\d+)\s+)?(?P<item>[a-zA-Z0-9]+)\s*", command,
+            re.IGNORECASE)
+        if fetchMatch:
+            player = self.getPlayerByName(name)
+            itemName = fetchMatch.groupdict()['item']
+            count = fetchMatch.groupdict()['count']
+            if count is None: count = 1
+            else: count = int(count)
+            
+            if itemName not in BLOCKITEM_LOOKUP:
+                logging.error("no item %r" % (fetchMatch.group(1),))
+            elif player:
+                def fetchItemCommand(itemId, entityId):
+                    if itemId not in TECH_MAP:
+                        raise Exception, "%r not in tech tree" % (BLOCKITEM_NAMES[itemId],)
+                    if self.playerInventory.countPlayerItemId(itemId) < count:
+                        evalCount = (count-self.playerInventory.countPlayerItemId(itemId))/TECH_MAP[itemId].produces
+                        for v in TECH_MAP[itemId].command_getOrderly(self, iceil(evalCount)): yield v
+                    for v in self.command_gotoEntity(entityId): yield v
+                    for v in self.playerInventory.command_drop(itemId, count): yield v
+
+                self.queueCommand(fetchItemCommand(BLOCKITEM_LOOKUP[itemName], player.id))
+        elif command.lower().startswith("quit following"):
+            logging.info("quit following")
+            for c in self.commandQueue:
+                if c.__name__ == self.command_followEntity.__name__:
+                    self.commandQueue.remove(c)
+        elif command.lower() == "come here":
+            player = self.getPlayerByName(name)
+            if player:
+                def walkCommand(pos, name):
+                    try:
+                        for v in self.command_walkPathTo(pos): yield v
+                    except Exception:
+                        logging.error("I'm afraid I cannot do that, %s" % (name,))
+                        #self.say("I'm afraid I cannot do that, %s" % name)
+                        raise
+                logging.info("going to %r" % name)
+                self.queueCommand(walkCommand(player.pos, name))
+        elif command.lower() == "respawn" or command.lower() == "spawn":
+            self.commandQueue = []
+            self.protocol.sendPacked(PACKET_RESPAWN)
+        elif command.lower() == "purge inventory":
+            self.queueCommand(self.playerInventory.command_purge())
+    
     def say(self, stuff):
         self.protocol.sendPacked(PACKET_CHAT, stuff)
     
@@ -371,78 +438,14 @@ class BotClient(object):
 
         #Baconbot
         commandMatch = re.match("<?(?:\xC2\xA7.)*(.*?):?(?:\xC2\xA7.)*>?\\s*%s[,.:\\s]\\s*(.*)\\s*" %
-                                    self.botname, message)
+                                    self.botname, message, re.IGNORECASE)
         if commandMatch:
             name = commandMatch.group(1)
             #if name != "espes":
             #    return
             command = commandMatch.group(2)
-
-            logging.debug("Command - %r" % command)
-
-            warpMatch = re.match(r"warp\s+(.*)\s*", command)
-            if warpMatch:
-                self.say("/warp %s" % warpMatch.group(1))
-            followMatch = re.match(r"follow\s+([a-zA-Z0-9]+)\s*", command)
-            if followMatch:
-                followName = followMatch.group(1).strip().lower()
-                if followName == "me":
-                    followName = name.lower()
-
-                player = self.getPlayerByName(followName, True)
-                if player:
-                    #remove existing follow commands
-                    for c in self.commandQueue:
-                        if c.__name__ == self.command_followEntity.__name__:
-                            self.commandQueue.remove(c)
-                    self.commandQueue.append(self.command_followEntity(player.id))
-                else:
-                    logging.error("couldn't find %r" % followName)
-                    #self.say("I'm afraid I cannot do that, %s" % name)
-            fetchMatch = re.match(r"(?:gimm?eh?|get meh?)\s+(?:(?P<count>\d+)\s+)?(?P<item>[a-zA-Z0-9]+)\s*", command)
-            if fetchMatch:
-                player = self.getPlayerByName(name)
-                itemName = fetchMatch.groupdict()['item']
-                count = fetchMatch.groupdict()['count']
-                if count is None: count = 1
-                else: count = int(count)
-                
-                if itemName not in BLOCKITEM_LOOKUP:
-                    logging.error("no item %r" % (fetMatch.group(1),))
-                elif player:
-                    def fetchItemCommand(itemId, entityId):
-                        if itemId not in TECH_MAP:
-                            raise Exception, "%r not in tech tree" % (BLOCKITEM_NAMES[itemId],)
-                        if self.playerInventory.countPlayerItemId(itemId) < count:
-                            evalCount = (count-self.playerInventory.countPlayerItemId(itemId))/TECH_MAP[itemId].produces
-                            for v in TECH_MAP[itemId].command_getOrderly(self, iceil(evalCount)): yield v
-                        for v in self.command_gotoEntity(entityId): yield v
-                        for v in self.playerInventory.command_drop(itemId, count): yield v
-
-                    self.queueCommand(fetchItemCommand(BLOCKITEM_LOOKUP[itemName], player.id))
-            elif command.lower().startswith("quit following"):
-                logging.info("quit following")
-                for c in self.commandQueue:
-                    if c.__name__ == self.command_followEntity.__name__:
-                        self.commandQueue.remove(c)
-            elif command.lower() == "come here":
-                player = self.getPlayerByName(name)
-                if player:
-                    def walkCommand(pos, name):
-                        try:
-                            for v in self.command_walkPathTo(pos): yield v
-                        except Exception:
-                            logging.error("I'm afraid I cannot do that, %s" % (name,))
-                            #self.say("I'm afraid I cannot do that, %s" % name)
-                            raise
-                    logging.info("going to %r" % name)
-                    self.queueCommand(walkCommand(player.pos, name))
-            elif command.lower() == "respawn" or command.lower() == "spawn":
-                self.commandQueue = []
-                self.protocol.sendPacked(PACKET_RESPAWN)
-            elif command.lower() == "purge inventory":
-                self.queueCommand(self.playerInventory.command_purge())
-
+            
+            self.parseCommand(name, command)
 
 
     def _handleSpawnPosition(self, parts):

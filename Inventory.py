@@ -107,7 +107,7 @@ class Inventory(object):
                 return i
         return None
     
-    def command_click(self, slot, rightClick=0):
+    def command_click(self, slot, rightClick=0, shiftClick=0):
         assert self.handler.currentWindowId == self.windowId
         
         transactionId = random.randrange(1, 0x7fff)
@@ -116,7 +116,7 @@ class Inventory(object):
             self.windowId, transactionId, self.items.get(slot)))
 
         self.handler.protocol.sendPacked(PACKET_WINDOWCLICK, self.windowId, slot,
-            rightClick, transactionId, self.items.get(slot))
+            rightClick, transactionId, shiftClick, self.items.get(slot))
         
         while self.transactionResult[transactionId] is None:
             yield True

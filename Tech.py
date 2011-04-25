@@ -59,6 +59,9 @@ class Tech(object):
             except TypeError: #not iterable
                 dep = makeTech(dep)
             
+            count -= invHas[dep]
+            if count <= 0: continue
+            
             get = (getCount/abs(getCount))*(count/dep.produces)
             hasReq[dep] = max(get, hasReq[dep])
             dep.calcRequiredCounts(get, curGet, hasReq, invHas)
