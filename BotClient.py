@@ -156,9 +156,14 @@ class BotClient(object):
                                 #logging.debug("broke %r" % (offset,))
                                 break
                         else:
-                            #make sure we don't float
+                            #make sure we don't float for too long
+                            c = 0
                             for pos in self.map.raycast(self.pos, path[i+1]):
                                 if self.map[pos+(0, -1, 0)] in BLOCKS_WALKABLE:
+                                    c += 1
+                                else:
+                                    c = 0
+                                if c >= 3:
                                     break
                             else:
                                 #logging.debug("skip")
@@ -339,7 +344,7 @@ class BotClient(object):
             else:
                 logging.error("couldn't find %r" % followName)
                 #self.say("I'm afraid I cannot do that, %s" % name)
-        fetchMatch = re.match(r"(?:gimm?eh?|get meh?(?: a)?)\s+(?:(?P<count>\d+)\s+)?(?P<item>[a-zA-Z0-9]+)\s*", command,
+        fetchMatch = re.match(r"(?:gimm?eh?|get meh?)\s+(?:(?:a|(?P<count>\d+))\s+)?(?P<item>[a-zA-Z0-9]+)\s*", command,
             re.IGNORECASE)
         if fetchMatch:
             player = self.getPlayerByName(name)
@@ -418,7 +423,7 @@ class BotClient(object):
             
             try:
                 #fall
-                if self.map[self.pos + (0, -1, 0)] in BLOCKS_WALKABLE:
+                if self.map[self.pos + (0, -1, 0)] in BLOCKS_WALKABLE or (self.pos.y % 1) > 0.1:
                     logging.info("falling...")
                     y=0
                     for y in xrange(self.pos.y, -1, -1):

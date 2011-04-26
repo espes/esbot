@@ -134,7 +134,10 @@ class Item(object):
         yield self.count
         yield self.health
     def __repr__(self):
-        return "Item(itemId=%r, count=%r, health=%r)" % (self.itemId, self.count, self.health)
+        if self.itemId in BLOCKITEM_NAMES:
+            return "Item(%r, count=%r, health=%r)" % (BLOCKITEM_NAMES[self.itemId], self.count, self.health)
+        else:
+            return "Item(itemId=%r, count=%r, health=%r)" % (self.itemId, self.count, self.health)
 
 class MapPlayer(object):
     def __init__(self, name, pos):
@@ -163,51 +166,64 @@ class GameLogic(object):
         return face
     
     def itemCanHarvestBlock(self, item, block):
-        #TODO: Complete
-        
-        #if block not in MATERIAL_ROCK | MATERIAL_IRON | frozenset([BLOCK_SNOWBLOCK, BLOCK_SNOW]):
-        #    return True
+        if BLOCKITEM_MATERIAL[block] not in (MATERIAL_STONE, MATERIAL_IRON, MATERIAL_SNOW):
+            return True
         if item in ITEMS_TOOLS:
             level = ITEMS_TOOLLEVEL[item]
         if item in ITEMS_PICKAXE:
             if block == BLOCK_OBSIDIAN: return level == 3
-            if block in (BLOCK_DIAMONDBLOCK, BLOCK_DIAMONDORE): return level >= 2
-            if block in (BLOCK_GOLDBLOCK, BLOCK_GOLDORE): return level >= 2
-            if block in (BLOCK_IRONBLOCK, BLOCK_IRONORE): return level >= 1
-            if block in (BLOCK_REDSTONEORE, BLOCK_REDSTONEORE2): return level >= 2
-            return block in MATERIAL_ROCK | MATERIAL_IRON
+            if block in (BLOCK_DIAMOND, BLOCK_DIAMONDORE): return level >= 2
+            if block in (BLOCK_GOLD, BLOCK_GOLDORE): return level >= 2
+            if block in (BLOCK_IRON, BLOCK_IRONORE): return level >= 1
+            if block in (BLOCK_REDSTONEORE, BLOCK_GLOWINGREDSTONEORE): return level >= 2
+            return BLOCKITEM_MATERIAL[block] in (MATERIAL_STONE, MATERIAL_IRON)
+        if item in ITEMS_SHOVEL:
+            return block in (BLOCK_SNOWBLOCK, BLOCK_SNOW)
+        
         return False
     
     def itemStrVsBlock(self, item, block):
-        #TODO: Complete
-        
         if item in ITEMS_TOOLS:
-            level = ITEMS_TOOLLEVEL[item]
+            efficiency = ITEMS_TOOLEFFICIENCY[item]
         if item in ITEMS_PICKAXE:
             if block in (
                 BLOCK_COBBLESTONE,
-                BLOCK_STAIR,
-                BLOCK_DOUBLESTAIR,
+                BLOCK_STONESTAIRS,
                 BLOCK_STONE,
                 BLOCK_MOSSYCOBBLESTONE,
                 BLOCK_IRONORE,
-                BLOCK_STEELBLOCK,
+                BLOCK_IRON,
                 BLOCK_COALORE,
-                BLOCK_GOLDBLOCK,
+                BLOCK_GOLD,
                 BLOCK_GOLDORE,
                 BLOCK_DIAMONDORE,
-                BLOCK_DIAMONDBLOCK,
+                BLOCK_DIAMOND,
                 BLOCK_ICE,
-                BLOCK_BRIMSTONE): return (level+1)*2
+                BLOCK_BRIMSTONE): return efficiency
+        if item in ITEMS_SHOVEL:
+            if block in (
+                BLOCK_GRASS,
+                BLOCK_DIRT,
+                BLOCK_SAND,
+                BLOCK_GRAVEL,
+                BLOCK_SNOW,
+                BLOCK_SNOWBLOCK,
+                BLOCK_CLAY): return efficiency
+        if item in ITEMS_AXE:
+            if block in (
+                BLOCK_LOG,
+                BLOCK_BOOKSHELF,
+                BLOCK_WOOD): return efficiency
         
         return 1
     
     def calcHitsToBreakBlock(self, client, block, item=None):
         if item is None:
             item = client.playerInventory.equippedItem or -1
-        
+        if isinstance(item, Item):
+            item = item.itemId
         #since items are not fully implemented
-        item = -1
+        #item = -1
         
         if block in BLOCKS_HARDNESS:
             hardness = BLOCKS_HARDNESS[block]
@@ -218,7 +234,8 @@ class GameLogic(object):
         
         if self.itemCanHarvestBlock(item, block):
             strength = self.itemStrVsBlock(item, block)
-            if client.map[client.pos + (0, 1, 0)] in (BLOCKS_WATER, BLOCKS_STATIONARYWATER):
+            if (client.map[client.pos + (0, 1, 0)] in (BLOCK_WATER, BLOCK_SPRING) or
+                    client.map[client.pos + (0, -1, 0)] in BLOCKS_WALKABLE):
                 strength /= 5
             damagePerHit = strength / hardness / 30
         else:

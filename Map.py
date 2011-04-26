@@ -288,12 +288,37 @@ class Map(object):
                 except BlockNotLoadedError:
                     pass
                 
+                #don't destroy blocks when things will seep in
+                if destructive:
+                    abort = False
+                    for offset in [ (1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1),
+                                    (1, 1, 0), (-1, 1, 0), (0, 1, 1), (0, 1, -1)]:
+                        try:
+                            if self[newNode.pos+offset] in (
+                                    BLOCK_WATER,
+                                    BLOCK_SPRING,
+                                    BLOCK_LAVA,
+                                    BLOCK_LAVASPRING):
+                                abort = True
+                                break
+                        except BlockNotLoadedError:
+                            pass
+                    if abort: continue
+                
+                
+                #walking ontop of lava hurts
+                try:
+                    if self[newNode.pos + (0, -1, 0)] in (BLOCK_LAVA, BLOCK_LAVASPRING):
+                        continue
+                except BlockNotLoadedError:
+                    pass
+                
                 backTrack[newNode.pos] = node
                 visited.add(newNode.pos)
                 heapq.heappush(pq, newNode)
         
         if found is not None:
-            logging.debug("reconstruct")
+            #logging.debug("reconstruct")
             
             path = []
             cur = found

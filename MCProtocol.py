@@ -57,7 +57,7 @@ class MCBaseClientProtocol(protocol.Protocol):
             except KeyError:
                 logging.error("invalid packet type - 0x%x %r %r" % (packetType,
                     len(self.buffer), self.buffer))
-                
+                logging.error("last 0x%x" % (self.lastPacket,))
                 self.transport.loseConnection()
                 return
             
@@ -68,6 +68,8 @@ class MCBaseClientProtocol(protocol.Protocol):
             self.buffer = parseBuffer.peek()
             
             self.counter += 1
+            
+            self.lastPacket = packetType
             
             #TODO: send the keepalive at some set interval
             if self.counter % 300 == 0:

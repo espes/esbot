@@ -109,6 +109,7 @@ class OutputWidget(TextOutput):
 
     def addMessage(self, message):
         self.messages.append(message.encode("utf-8"))
+        self.messages = self.messages[-200:]
         self.repaint()
 
     def render(self, width, height, terminal):
