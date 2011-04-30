@@ -344,7 +344,7 @@ class BotClient(object):
             else:
                 logging.error("couldn't find %r" % followName)
                 #self.say("I'm afraid I cannot do that, %s" % name)
-        fetchMatch = re.match(r"(?:gimm?eh?|get meh?)\s+(?:(?:a|(?P<count>\d+))\s+)?(?P<item>[a-zA-Z0-9]+)\s*", command,
+        fetchMatch = re.match(r"(?:gimm?eh?|get meh?)\s+(?:(?:a|(?P<count>\d+))\s+)?(?P<item>[a-zA-Z0-9\-]+)\s*", command,
             re.IGNORECASE)
         if fetchMatch:
             player = self.getPlayerByName(name)
@@ -354,7 +354,7 @@ class BotClient(object):
             else: count = int(count)
             
             if itemName not in BLOCKITEM_LOOKUP:
-                logging.error("no item %r" % (fetchMatch.group(1),))
+                logging.error("no item %r" % (itemName,))
             elif player:
                 def fetchItemCommand(itemId, entityId):
                     if itemId not in TECH_MAP:

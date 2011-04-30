@@ -168,6 +168,7 @@ class Map(object):
             timeout=10,
             destructive=False,
             blockBreakPenalty=None,
+            floatPenalty=10,
             forClient=None):
         walkableBlocks = BLOCKS_WALKABLE
         if destructive:
@@ -199,17 +200,6 @@ class Map(object):
                 except BlockNotLoadedError:
                     self.blockId = None
                     self.available = False
-                
-                if destructive and self.blockId in BLOCKS_BREAKABLE:
-                    if blockBreakPenalty is not None:
-                        self.dist += blockBreakPenalty
-                    elif forClient:
-                        #Assume not holding anything :\
-                        #20 hits per sec
-                        mineTime = gamelogic.calcHitsToBreakBlock(forClient, self.blockId, -1)/20
-                        
-                        mineDistance = forClient.speed*mineTime
-                        self.dist += mineDistance
             def __cmp__(self, other):
                 return cmp(self.dist, other.dist)
         
@@ -265,16 +255,6 @@ class Map(object):
                 except BlockNotLoadedError:
                     pass
                 
-                #make sure we're not just floating
-                try:
-                    if (newNode.pos.y >= node.pos.y and
-                            self[newNode.pos + (0, -1, 0)] in BLOCKS_WALKABLE and
-                            self[node.pos + (0, -1, 0)] in BLOCKS_WALKABLE and
-                            self[newNode.pos] != BLOCK_LADDER):
-                        continue
-                except BlockNotLoadedError:
-                    pass
-                
                 #don't destroy blocks when things will fall on you
                 try:
                     if destructive and self[newNode.pos + (0, 2, 0)] in (
@@ -310,6 +290,34 @@ class Map(object):
                 try:
                     if self[newNode.pos + (0, -1, 0)] in (BLOCK_LAVA, BLOCK_LAVASPRING):
                         continue
+                except BlockNotLoadedError:
+                    pass
+                
+                #Avoid breaking blocks
+                if destructive:
+                    for offset in [(0, 0, 0), (0, 1, 0)]:
+                        try:
+                            blockId = self[newNode.pos + offset]
+                        except BlockNotLoadedError:
+                            continue
+                        if blockId in BLOCKS_BREAKABLE:
+                            if blockBreakPenalty is not None:
+                                newNode.dist += blockBreakPenalty
+                            elif forClient:
+                                #Assume not holding anything :\
+                                #20 hits per sec
+                                mineTime = gamelogic.calcHitsToBreakBlock(forClient, blockId, -1)/20
+
+                                mineDistance = forClient.speed*mineTime
+                                newNode.dist += mineDistance/2
+                
+                #Avoid floating
+                try:
+                    if (newNode.pos.y >= node.pos.y and
+                            self[newNode.pos + (0, -1, 0)] in BLOCKS_WALKABLE and
+                            self[node.pos + (0, -1, 0)] in BLOCKS_WALKABLE and
+                            self[newNode.pos] != BLOCK_LADDER):
+                        newNode.dist += floatPenalty
                 except BlockNotLoadedError:
                     pass
                 

@@ -256,7 +256,7 @@ class TechMineItem(TechItem):
             
             try:
                 for v in client.command_walkPathTo(blockPos,
-                    destructive=True, blockBreakPenalty=10):
+                    destructive=True, blockBreakPenalty=5):
                     yield v
             except Exception as ex:
                 logging.exception(ex)
@@ -331,30 +331,28 @@ class TechCraftItem(TechFromRecipe):
         #hit it
         if not client.placeBlock(placePos):
             raise Exception, "failed hitting crafing table"
-        yield True
         
-        logging.debug("wait for crafting window open")
-        #Wait for window to come up
-        while not isinstance(client.inventoryHandler.currentWindow, WorkBenchInventory):
-            yield True
+        try:
+            logging.debug("wait for crafting window open")
+            #Wait for window to come up
+            while not isinstance(client.inventoryHandler.currentWindow, WorkBenchInventory):
+                yield True
         
-        craftingWindow = client.inventoryHandler.currentWindow
+            craftingWindow = client.inventoryHandler.currentWindow
         
         
-        for i in xrange(iceil(getCount)):
-            logging.debug("place items")
-            for v in craftingWindow.command_fillRecipe(self.recipe):
+            for i in xrange(iceil(getCount)):
+                logging.debug("place items")
+                for v in craftingWindow.command_fillRecipe(self.recipe):
+                    yield v
+                logging.debug("retrieve")
+                for v in craftingWindow.command_moveToPlayerInventory(0):
+                    yield v
+            client.inventoryHandler.closeWindow(craftingWindow)
+        finally:
+            #walk back down destroying the crafting table
+            for v in client.command_walkPathTo(placePos, destructive=True, blockBreakPenalty=0):
                 yield v
-            logging.debug("retrieve")
-            for v in craftingWindow.command_moveToPlayerInventory(0):
-                yield v
-            
-        
-        client.inventoryHandler.closeWindow(craftingWindow)
-        
-        #walk back down destroying the crafting table
-        for v in client.command_walkPathTo(placePos, destructive=True, blockBreakPenalty=0):
-            yield v
 
 TECH_MAP = {
     
