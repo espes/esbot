@@ -56,11 +56,16 @@ def main():
     
     f = BotFactory(username, sessionId, botname, interfaceNamespace)
     reactor.connectTCP(server, port, f)
-    
-    #start with a null oberserver to remove DefaultObserver
-    #because we can't stderr in a terminal
-    log.startLoggingWithObserver(lambda a: '')
-    runReactorWithTerminal(CommandLineBotInterface, interfaceNamespace)
+   
+    if ENABLE_CONSOLE:
+        #start with a null oberserver to remove DefaultObserver
+        #because we can't stderr in a terminal
+        log.startLoggingWithObserver(lambda a: '')
+
+        runReactorWithTerminal(CommandLineBotInterface, interfaceNamespace)
+    else:
+        reactor.run()
+
     
     
 

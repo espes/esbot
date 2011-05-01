@@ -117,8 +117,10 @@ class BotClient(object):
                 #print "finding path"
             
                 deferred = threads.deferToThread(self.map.findPath,
-                                self.pos, targetPoint, True, targetThreshold,
-                                destructive=destructive, blockBreakPenalty=blockBreakPenalty,
+                                self.pos, targetPoint, acceptIncomplete=True,
+                                threshold=targetThreshold,
+                                destructive=destructive,
+                                blockBreakPenalty=blockBreakPenalty,
                                 forClient=self)
                 #hack
                 while not hasattr(deferred, 'result'):
@@ -354,7 +356,7 @@ class BotClient(object):
             else: count = int(count)
             
             if itemName not in BLOCKITEM_LOOKUP:
-                logging.error("no item %r" % (itemName,))
+                logging.error("no item %s" % (itemName,))
             elif player:
                 def fetchItemCommand(itemId, entityId):
                     if itemId not in TECH_MAP:

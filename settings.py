@@ -1,1 +1,2 @@
-ENABLE_AUTH = True
+ENABLE_AUTH = False
+ENABLE_CONSOLE = False

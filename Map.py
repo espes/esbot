@@ -176,11 +176,12 @@ class Map(object):
         
         #Greedy BFS FTW
         #(I fail - A* slower in general case. Patches welcome)
-        try:
+
+        # If we must find the entire path, reject end points that aren't
+        # currently walkable.
+        if not acceptIncomplete:
             assert self[end] in walkableBlocks and self[end + (0, 1, 0)] in walkableBlocks
-        except BlockNotLoadedError, e:
-            if not acceptIncomplete:
-                raise e
+
         assert self[start] in BLOCKS_WALKABLE
         
         adjX = self.adjX
