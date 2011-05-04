@@ -445,7 +445,7 @@ class BotClient(object):
 
         commandMatch = re.match(
                                    (
-                                   r"<?(?:[\xC2\xA7].)*(.*?):?(?:[\xC2\xA7f])*>? "
+                                   r"<?(?:[\xC2\xA7].)*(.*?):?(?:[\xC2\xA7].)*>? "
                                    r"(?:[\xC2\xA7].)*%s(?:[\xC2\xA7].)*[,.:\s]*(.*)\s*"
                                    ) % self.botname,
                                message,
