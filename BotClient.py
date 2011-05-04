@@ -443,9 +443,14 @@ class BotClient(object):
     def _handleChat(self, parts):
         message, = parts
 
-        #Baconbot
-        commandMatch = re.match("<?(?:\xC2\xA7.)*(.*?):?(?:\xC2\xA7.)*>?\\s*%s[,.:\\s]\\s*(.*)\\s*" %
-                                    self.botname, message, re.IGNORECASE)
+        commandMatch = re.match(
+                                   (
+                                   "<?(?:[\xC2\xA7].)*(.*?):?(?:[\xC2\xA7f])*>? "
+                                   "(?:[\xC2\xA7].)*%s(?:[\xC2\xA7].)*[,.:\\s]*(.*)\\s*"
+                                   ) % self.botname,
+                               message,
+                               re.IGNORECASE
+                               )
         if commandMatch:
             name = commandMatch.group(1)
             #if name != "espes":
@@ -534,10 +539,8 @@ class BotClient(object):
         parts = list(parts)
         chunkX, chunkZ = parts.pop(0)
         blocks = parts
-        if (chunkX, 0, chunkZ) in self.map.chunks:
-            chunk = self.map.chunks[chunkX, 0, chunkZ]
-            for place, type, metadata in blocks:
-                chunk[place] = type
+        for place, type, metadata in blocks:
+            self.map[Point(*place)+(chunkX*16, 0, chunkZ*16)] = type
 
     def _handleSetSlot(self, parts):
         windowId, slot, item = parts
