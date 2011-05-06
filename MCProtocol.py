@@ -81,7 +81,8 @@ class MCBaseClientProtocol(protocol.Protocol):
                     if ret == False:
                         return
                 except Exception as ex:
-                    log.err(ex)
+                    logging.error("Exception in handling packet 0x%02x:" % (packetType,))
+                    logging.exception(ex)
     
     def _handleLogin(self, parts):
         id, name, mapSeed, dimension = parts

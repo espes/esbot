@@ -346,7 +346,7 @@ class BotClient(object):
             else:
                 logging.error("couldn't find %r" % followName)
                 #self.say("I'm afraid I cannot do that, %s" % name)
-        fetchMatch = re.match(r"(?:gimm?eh?|get meh?)\s+(?:(?:a|(?P<count>\d+))\s+)?(?P<item>[a-zA-Z0-9\-]+)\s*", command,
+        fetchMatch = re.match(r"(?:gimm?eh?|get meh?)\s+(?:(?:a|(?P<count>\d+))\s+)?(?P<item>[a-z0-9\-]+)\s*", command,
             re.IGNORECASE)
         if fetchMatch:
             player = self.getPlayerByName(name)
@@ -428,7 +428,7 @@ class BotClient(object):
                 if self.map[self.pos + (0, -1, 0)] in BLOCKS_WALKABLE or (self.pos.y % 1) > 0.1:
                     logging.info("falling...")
                     y=0
-                    for y in xrange(self.pos.y, -1, -1):
+                    for y in xrange(ifloor(self.pos.y), -1, -1):
                         if self.map[self.pos.x, y, self.pos.z] not in BLOCKS_WALKABLE:
                             break
                     self.queueCommand(self.command_moveTowards(Point(self.pos.x, y+1, self.pos.z)))
@@ -540,7 +540,10 @@ class BotClient(object):
         chunkX, chunkZ = parts.pop(0)
         blocks = parts
         for place, type, metadata in blocks:
-            self.map[Point(*place)+(chunkX*16, 0, chunkZ*16)] = type
+            try:
+                self.map[Point(*place)+(chunkX*16, 0, chunkZ*16)] = type
+            except BlockNotLoadedError:
+                pass
 
     def _handleSetSlot(self, parts):
         windowId, slot, item = parts
