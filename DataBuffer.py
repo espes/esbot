@@ -2,6 +2,7 @@
 #GPL and all that
 # - espes
 
+import struct
 from StringIO import StringIO
 
 class IncompleteDataError(Exception):
@@ -17,6 +18,12 @@ class DataBuffer(StringIO):
         if self.lenLeft() < size:
             raise IncompleteDataError
         return StringIO.read(self, size)
+    def readStruct(self, formatString):
+        length = struct.calcsize(formatString)
+        try:
+            return struct.unpack(formatString, self.read(length))
+        except struct.error:
+            raise IncompleteDataError
     def peek(self, size=None):
         if size is None:
             return self.getvalue()[self.tell():]

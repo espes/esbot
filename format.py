@@ -7,28 +7,21 @@ import zlib
 
 from DataBuffer import *
 
-def readStruct(formatString, dataBuffer):
-    length = struct.calcsize(formatString)
-    try:
-        return struct.unpack(formatString, dataBuffer.read(length))
-    except struct.error:
-        raise IncompleteDataError
-
 class Format(object):
     def __init__(self, format):
         self.format = format
     def decode(self, dataBuffer):
         for char in self.format:
             if char == "S": # minecraft string
-                length, = readStruct("!h", dataBuffer)
+                length, = dataBuffer.readStruct("!h")
                 yield unicode(dataBuffer.read(length*2), "utf_16_be")
             elif char == "8": # minecraft string8
-                length, = readStruct("!h", dataBuffer)
+                length, = dataBuffer.readStruct("!h")
                 yield dataBuffer.read(length)
             elif char == "M": # hack
                 yield tuple(EntityMetadataFormat().decode(dataBuffer))
             else:
-                res, = readStruct("!"+char, dataBuffer)
+                res, = dataBuffer.readStruct("!"+char)
                 yield res
     
     def encode(self, *args):
@@ -52,12 +45,12 @@ class MultiBlockChangeFormat(Format):
     def __init__(self):
         pass
     def decode(self, dataBuffer):
-        x, z, size = readStruct("!iih", dataBuffer)
+        x, z, size = dataBuffer.readStruct("!iih")
         yield x, z
         
-        coords = readStruct("!%dh" % size, dataBuffer)
-        types = readStruct("!%db" % size, dataBuffer)
-        metadatas = readStruct("!%db" % size, dataBuffer)
+        coords = dataBuffer.readStruct("!%dh" % size)
+        types = dataBuffer.readStruct("!%db" % size)
+        metadatas = dataBuffer.readStruct("!%db" % size)
         
         for coord, type, metadata in zip(coords, types, metadatas):
             bx = coord >> (8+4)
@@ -72,17 +65,17 @@ class WindowItemsFormat(Format):
     def __init__(self):
         pass
     def decode(self, dataBuffer):
-        type, count = readStruct("!bh", dataBuffer)
+        type, count = dataBuffer.readStruct("!bh")
         
         yield type
         #yield count
         
         items = {}
         for i in xrange(count):
-            itemId, = readStruct("!h", dataBuffer)
+            itemId, = dataBuffer.readStruct("!h")
             if itemId == -1: continue
             
-            count, health = readStruct("!bh", dataBuffer)
+            count, health = dataBuffer.readStruct("!bh")
             items[i] = (itemId, count, health)
         yield items
 
@@ -91,13 +84,13 @@ class SetSlotFormat(Format):
     def __init__(self):
         pass
     def decode(self, dataBuffer):
-        type, slot, itemId = readStruct("!bhh", dataBuffer)
+        type, slot, itemId = dataBuffer.readStruct("!bhh")
         
         yield type
         yield slot
         
         if itemId >= 0:
-            count, health = readStruct("!bh", dataBuffer)
+            count, health = dataBuffer.readStruct("!bh")
             yield (itemId, count, health)
         else:
             yield None
@@ -116,9 +109,9 @@ class ExplosionFormat(Format):
     def __init__(self):
         pass
     def decode(self, dataBuffer):
-        x, y, z, unk1, count = readStruct("!dddfi", dataBuffer)
+        x, y, z, unk1, count = dataBuffer.readStruct("!dddfi")
         for i in xrange(count):
-            dx, dy, dz = readStruct("!bbb", dataBuffer)
+            dx, dy, dz = dataBuffer.readStruct("!bbb")
 
 class BlockPlaceFormat(Format):
     def __init__(self):
@@ -130,15 +123,15 @@ class BlockPlaceFormat(Format):
             itemId, count, uses = item
             return struct.pack("!ibibhbh", x, y, z, direction, itemId, count, uses)
     def decode(self, dataBuffer):
-        x, y, z, face, itemId = readStruct("!ibibh", dataBuffer)
+        x, y, z, face, itemId = dataBuffer.readStruct("!ibibh")
         if itemId >= 0:
-            count, health = readStruct("!bb", dataBuffer)
+            count, health = dataBuffer.readStruct("!bb")
 
 class ChunkFormat(Format):
     def __init__(self):
         pass
     def decode(self, dataBuffer):
-        x, y, z, sx, sy, sz, chunkSize = readStruct("!ihibbbi", dataBuffer)
+        x, y, z, sx, sy, sz, chunkSize = dataBuffer.readStruct("!ihibbbi")
         
         sx += 1
         sy += 1
@@ -170,8 +163,15 @@ class EntityMetadataFormat(Format):
         }
     def decode(self, dataBuffer):
         while True:
-            x, = readStruct("!b", dataBuffer)
+            x, = dataBuffer.readStruct("!b")
             if x == 127: break
             yield tuple(self.formatMap[(x & 0xE0) >> 5].decode(dataBuffer))
         
-
+class ItemDataFormat(Format):
+    def __init__(self):
+        pass
+    def decode(self, dataBuffer):
+        itemId, damage, length = dataBuffer.readStruct("!hhb")
+        yield itemId
+        yield damage
+        yield dataBuffer.read(length)

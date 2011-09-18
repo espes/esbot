@@ -4,6 +4,7 @@
 
 from __future__ import division
 
+import time
 import urllib
 import logging
 from collections import defaultdict
@@ -29,10 +30,10 @@ class MCBaseClientProtocol(protocol.Protocol):
     
     def connectionMade(self):
         self.buffer = ""
-        self.counter = 0
         
         self.packetHandlers = defaultdict(list)
         self.addPacketHandlers({
+           PACKET_KEEPALIVE: self._handleKeepAlive,
            PACKET_LOGIN: self._handleLogin,
            PACKET_HANDSHAKE: self._handleHandshake,
            PACKET_CHAT: self._handleChat,
@@ -40,12 +41,18 @@ class MCBaseClientProtocol(protocol.Protocol):
         })
         
         self.sendPacked(PACKET_HANDSHAKE, self.factory.username)
+        
+        #interesting benchmark stuffs
+        self.counter = 0
+        self.lastCountTime = time.time()
+        self.totalData = 0
 
     def connectionLost(self, reason):
         pass
         
     def dataReceived(self, data):
         self.buffer += data
+        self.totalData += len(data)
         
         parseBuffer = DataBuffer(self.buffer)
         while parseBuffer.lenLeft() > 0:
@@ -67,13 +74,15 @@ class MCBaseClientProtocol(protocol.Protocol):
                 break
             self.buffer = parseBuffer.peek()
             
+            #interesting benchmark stuffs
             self.counter += 1
+            if self.counter % 1000 == 0:
+                d = time.time()-self.lastCountTime
+                logging.debug("1000 in %r - %r packets/s - %r kB/s" % (d, 1000/d, self.totalData/1000/d))
+                self.lastCountTime = time.time()
+                self.totalData = 0
             
             self.lastPacket = packetType
-            
-            #TODO: send the keepalive at some set interval
-            if self.counter % 300 == 0:
-                self.sendPacked(PACKET_KEEPALIVE)
             
             for handler in self.packetHandlers[packetType]:
                 try:
@@ -83,10 +92,12 @@ class MCBaseClientProtocol(protocol.Protocol):
                 except Exception as ex:
                     logging.error("Exception in handling packet 0x%02x:" % (packetType,))
                     logging.exception(ex)
-    
+    def _handleKeepAlive(self, parts):
+        id, = parts
+        self.sendPacked(PACKET_KEEPALIVE, id)
     def _handleLogin(self, parts):
-        id, name, mapSeed, dimension = parts
-        logging.info("Server login %r %r %r %r" % (id, name, mapSeed, dimension))
+        id, name, mapSeed, mode, dimension, unk, height, plaers = parts
+        logging.info("Server login %r %r %r %r %r %r %r %r" % parts)
     def _handleHandshake(self, parts):
         serverId, = parts
 
@@ -110,7 +121,7 @@ class MCBaseClientProtocol(protocol.Protocol):
         
             logging.info("Done")
 
-        self.sendPacked(PACKET_LOGIN, 11, self.factory.username, 0, 0)
+        self.sendPacked(PACKET_LOGIN, 17, self.factory.username, 0, 0, 0, 0, 0, 0)
     def _handleChat(self, parts):
         message, = parts
         logging.info("Chat\t%r" % message)

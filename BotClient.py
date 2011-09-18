@@ -63,6 +63,7 @@ class BotClient(object):
         self.pos = Point(-1, -1, -1)
         self.headY = -1
         self.hp = -1
+        self.food = -1
         
         self.lookTarget = None
         
@@ -464,9 +465,10 @@ class BotClient(object):
         self.spawnPos = Point(*parts)
 
     def _handlePlayerHealth(self, parts):
-        hp, = parts
-        logging.info("hp: %r" % hp)
+        hp, food, saturation = parts
+        logging.info("hp: %r, food: %r, saturation: %r" % (hp, food, saturation))
         self.hp = hp
+        self.food = food
 
     def _handlePlayerPosition(self, parts):
         #is the stance and y meant to be backwards?
