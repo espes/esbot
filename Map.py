@@ -15,7 +15,10 @@ class SearchTimeoutError(Exception):
 
 try:
     import numpy
-except ImportError:
+    
+    #Make sure it's actually useful
+    numpy.fromstring("000", dtype=numpy.uint8)
+except (ImportError, AttributeError, TypeError):
     import array
     class Chunk(object):
         def __init__(self, position, size, chunkData):
