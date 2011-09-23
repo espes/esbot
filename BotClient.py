@@ -388,7 +388,7 @@ class BotClient(object):
                 self.queueCommand(walkCommand(player.pos, name))
         elif command.lower() == "respawn" or command.lower() == "spawn":
             self.commandQueue = []
-            self.protocol.sendPacked(PACKET_RESPAWN)
+            self.protocol.sendPacked(PACKET_RESPAWN, 0, 0, 0, 0, 0)
         elif command.lower() == "purge inventory":
             self.queueCommand(self.playerInventory.command_purge())
     

@@ -225,7 +225,16 @@ def runReactorWithTerminal(terminalProtocol, *args):
     import os, tty, sys, termios
     from twisted.internet import stdio
     from twisted.conch.insults.insults import ServerProtocol
-
+    
+    #Fix quitter so it doesn't close stdin
+    #so we can call quit() from the terminal
+    #and not mess up our terminal
+    class NewQuitter(quit.__class__):
+        def __call__(self, code=None):
+            raise SystemExit(code)
+    __builtins__.quit = NewQuitter('quit')
+    __builtins__.exit = NewQuitter('exit')
+    
     fd = sys.__stdin__.fileno()
     oldSettings = termios.tcgetattr(fd)
     tty.setraw(fd)

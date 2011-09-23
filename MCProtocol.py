@@ -46,6 +46,8 @@ class MCBaseClientProtocol(protocol.Protocol):
         self.counter = 0
         self.lastCountTime = time.time()
         self.totalData = 0
+        from collections import Counter
+        self.packetCounts = Counter()
 
     def connectionLost(self, reason):
         pass
@@ -74,13 +76,17 @@ class MCBaseClientProtocol(protocol.Protocol):
                 break
             self.buffer = parseBuffer.peek()
             
+            
             #interesting benchmark stuffs
+            self.packetCounts[packetType] += 1
             self.counter += 1
             if self.counter % 1000 == 0:
                 d = time.time()-self.lastCountTime
                 logging.debug("1000 in %r - %r packets/s - %r kB/s" % (d, 1000/d, self.totalData/1000/d))
+                logging.debug(repr(self.packetCounts.most_common(5)))
                 self.lastCountTime = time.time()
                 self.totalData = 0
+                self.packetCounts.clear()
             
             self.lastPacket = packetType
             
@@ -97,7 +103,7 @@ class MCBaseClientProtocol(protocol.Protocol):
         self.sendPacked(PACKET_KEEPALIVE, id)
     def _handleLogin(self, parts):
         id, name, mapSeed, mode, dimension, unk, height, plaers = parts
-        logging.info("Server login %r %r %r %r %r %r %r %r" % parts)
+        logging.info("Server login %r" % (parts,))
     def _handleHandshake(self, parts):
         serverId, = parts
 
