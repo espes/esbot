@@ -159,13 +159,14 @@ class EntityMetadataFormat(Format):
             2: Format('i'),
             3: Format('f'),
             4: Format('S'),
-            5: Format('hbh')
+            5: Format('hbh'),
+            6: Format('iii')
         }
     def decode(self, dataBuffer):
         while True:
-            x, = dataBuffer.readStruct("!b")
+            x, = dataBuffer.readStruct("!B")
             if x == 127: break
-            yield tuple(self.formatMap[(x & 0xE0) >> 5].decode(dataBuffer))
+            yield tuple(self.formatMap[x >> 5].decode(dataBuffer))
         
 class ItemDataFormat(Format):
     def __init__(self):
