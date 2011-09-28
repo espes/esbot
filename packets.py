@@ -90,7 +90,7 @@ PACKET_FORMATS = {
     PACKET_NAMEDENTITYSPAWN: Format("iSiiibbh"),
     PACKET_PICKUPSPAWN: Format("ihbhiiibbb"),
     PACKET_COLLECTITEM: Format("ii"),
-    PACKET_ADDOBJECT: Format("ibiiiihhh"),
+    PACKET_ADDOBJECT: AddObjectFormat(),
     PACKET_MOBSPAWN: Format("ibiiibbM"),
     PACKET_PAINTING: Format("iSiiii"),
     PACKET_EXPERIENCEORB: Format("iiiih"),

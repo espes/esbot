@@ -176,3 +176,13 @@ class ItemDataFormat(Format):
         yield itemId
         yield damage
         yield dataBuffer.read(length)
+
+class AddObjectFormat(Format):
+    def __init__(self):
+        pass
+    def decode(self, dataBuffer):
+        id, type, x, y, z, fireballThrowerId = dataBuffer.readStruct("!ibiiii")
+        for v in (id, type, x, y, z, fireballThrowerId):
+            yield v
+        if fireballThrowerId > 0:
+            u1, u2, u3 = dataBuffer.readStruct("hhh")
