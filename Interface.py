@@ -232,8 +232,12 @@ def runReactorWithTerminal(terminalProtocol, *args):
     class NewQuitter(quit.__class__):
         def __call__(self, code=None):
             raise SystemExit(code)
-    __builtins__.quit = NewQuitter('quit')
-    __builtins__.exit = NewQuitter('exit')
+    if isinstance(__builtins__, dict):
+        __builtins__['quit'] = NewQuitter('quit')
+        __builtins__['exit'] = NewQuitter('exit')
+    else:
+        __builtins__.quit = NewQuitter('quit')
+        __builtins__.exit = NewQuitter('exit')
     
     fd = sys.__stdin__.fileno()
     oldSettings = termios.tcgetattr(fd)
